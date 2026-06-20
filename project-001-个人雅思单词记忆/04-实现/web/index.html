@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f6f1" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="单词TUO" />
+    <title>单词TUO</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">IELTS MEMORY</p>
+          <h1 id="pageTitle">今天</h1>
+        </div>
+        <button class="icon-button" id="quickAddButton" aria-label="添加单词">＋</button>
+      </header>
+
+      <main>
+        <section class="view active" id="homeView">
+          <section class="focus-band">
+            <div>
+              <p class="eyebrow">TODAY</p>
+              <h2>先完成到期复习</h2>
+              <p id="dailySummary">今天从熟悉的节奏开始。</p>
+            </div>
+            <button class="primary-button" id="startReviewButton">开始复习</button>
+          </section>
+
+          <section class="metric-grid" aria-label="学习概览">
+            <article class="metric"><span>待复习</span><strong id="dueCount">0</strong></article>
+            <article class="metric"><span>今日完成</span><strong id="todayCount">0</strong></article>
+            <article class="metric"><span>总词数</span><strong id="totalCount">0</strong></article>
+            <article class="metric"><span>连续学习</span><strong id="streakCount">0天</strong></article>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <h2>薄弱词</h2>
+              <button class="text-button" data-view-target="library">查看词库</button>
+            </div>
+            <ul class="word-list compact" id="weakWordList"></ul>
+          </section>
+        </section>
+
+        <section class="view" id="reviewView">
+          <section class="review-stage">
+            <div class="review-card">
+              <p class="eyebrow" id="reviewProgress">REVIEW</p>
+              <h2 id="reviewWord">今日已完成</h2>
+              <p class="phonetic" id="reviewPhonetic"></p>
+              <div class="review-tools">
+                <button class="secondary-button" id="speakButton">朗读</button>
+                <button class="primary-button" id="showAnswerButton">显示答案</button>
+              </div>
+              <div class="answer hidden" id="reviewAnswer">
+                <p id="reviewMeaning"></p>
+                <blockquote id="reviewExample"></blockquote>
+              </div>
+            </div>
+            <div class="review-actions" id="reviewActions">
+              <button class="again-button" data-result="again">不认识<small>今天</small></button>
+              <button class="hard-button" data-result="hard">模糊<small>1天</small></button>
+              <button class="good-button" data-result="good">认识<small>按等级</small></button>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="libraryView">
+          <div class="toolbar">
+            <input id="searchInput" type="search" placeholder="搜索单词、释义或标签" />
+            <select id="filterSelect" aria-label="筛选词库">
+              <option value="all">全部</option>
+              <option value="due">待复习</option>
+              <option value="weak">薄弱词</option>
+              <option value="mastered">已掌握</option>
+            </select>
+          </div>
+          <div class="command-row">
+            <button class="secondary-button" id="importButton">批量导入</button>
+            <button class="secondary-button" id="sampleButton">补充示例词</button>
+          </div>
+          <ul class="word-list" id="libraryList"></ul>
+        </section>
+
+        <section class="view" id="statsView">
+          <section class="panel">
+            <h2>掌握分布</h2>
+            <div class="level-bars" id="levelBars"></div>
+          </section>
+          <section class="panel">
+            <h2>最近复习</h2>
+            <ul class="history-list" id="historyList"></ul>
+          </section>
+        </section>
+
+        <section class="view" id="settingsView">
+          <section class="panel">
+            <h2>学习设置</h2>
+            <form class="settings-form" id="settingsForm">
+              <label>每日目标<input id="dailyGoalInput" type="number" min="1" max="300" inputmode="numeric" /></label>
+              <label class="toggle-label"><input id="autoSpeakInput" type="checkbox" />复习时自动朗读</label>
+              <button class="primary-button" type="submit">保存设置</button>
+            </form>
+          </section>
+          <section class="panel">
+            <h2>数据</h2>
+            <div class="command-row stacked-mobile">
+              <button class="secondary-button" id="exportButton">导出备份</button>
+              <button class="secondary-button" id="restoreButton">恢复备份</button>
+              <button class="danger-button" id="resetButton">重置数据</button>
+            </div>
+            <input class="hidden" id="restoreFileInput" type="file" accept="application/json,.json" />
+          </section>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="主导航">
+        <button class="nav-item active" data-view="home"><span>⌂</span>首页</button>
+        <button class="nav-item" data-view="review"><span>▣</span>复习</button>
+        <button class="nav-item" data-view="library"><span>≡</span>词库</button>
+        <button class="nav-item" data-view="stats"><span>▥</span>统计</button>
+        <button class="nav-item" data-view="settings"><span>⚙</span>设置</button>
+      </nav>
+    </div>
+
+    <dialog id="wordDialog">
+      <form class="dialog-form" id="wordForm">
+        <div class="dialog-heading"><h2 id="wordDialogTitle">添加单词</h2><button type="button" class="close-button" data-close="wordDialog">×</button></div>
+        <input type="hidden" id="wordId" />
+        <label>英文单词<input id="wordText" required autocapitalize="none" autocomplete="off" /></label>
+        <label>中文释义<textarea id="wordMeaning" required rows="3"></textarea></label>
+        <div class="form-grid">
+          <label>音标<input id="wordPhonetic" placeholder="/.../" /></label>
+          <label>标签<input id="wordTags" placeholder="雅思, 阅读" /></label>
+        </div>
+        <label>例句<textarea id="wordExample" rows="3"></textarea></label>
+        <div class="dialog-actions"><button type="button" class="secondary-button" data-close="wordDialog">取消</button><button class="primary-button" type="submit">保存</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="importDialog">
+      <form class="dialog-form" id="importForm">
+        <div class="dialog-heading"><h2>批量导入</h2><button type="button" class="close-button" data-close="importDialog">×</button></div>
+        <p class="muted">每行：英文 | 中文释义 | 例句 | 标签；也支持 JSON 数组。</p>
+        <textarea id="importText" rows="10" placeholder="substantial | 大量的；重要的 | The report shows a substantial increase. | 雅思, 阅读"></textarea>
+        <div class="dialog-actions"><button type="button" class="secondary-button" data-close="importDialog">取消</button><button class="primary-button" type="submit">导入</button></div>
+      </form>
+    </dialog>
+
+    <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>

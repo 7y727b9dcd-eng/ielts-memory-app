@@ -1,0 +1,76 @@
+name: Build WordTUO IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "project-001-个人雅思单词记忆/**"
+      - ".github/workflows/build-word-tuo-ipa.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Stage web resources
+        run: |
+          APP_ROOT="project-001-个人雅思单词记忆"
+          rm -rf "$APP_ROOT/04-实现/ios/Web"
+          mkdir -p "$APP_ROOT/04-实现/ios/Web"
+          cp -R "$APP_ROOT/04-实现/web/." "$APP_ROOT/04-实现/ios/Web/"
+
+      - name: Generate Xcode project
+        working-directory: project-001-个人雅思单词记忆/04-实现/ios
+        run: xcodegen generate
+
+      - name: Build unsigned app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project "project-001-个人雅思单词记忆/04-实现/ios/WordTUO.xcodeproj" \
+            -scheme WordTUO \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build-word-tuo \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build 2>&1 | tee word-tuo-build.log
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build-word-tuo/Build/Products/Release-iphoneos/WordTUO.app Payload/
+          zip -qry WordTUO-AltStore.ipa Payload
+
+      - name: Upload artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WordTUO-AltStore
+          path: WordTUO-AltStore.ipa
+          if-no-files-found: error
+
+      - name: Publish build result branch
+        if: always()
+        run: |
+          mkdir -p /tmp/word-tuo-output
+          cp word-tuo-build.log /tmp/word-tuo-output/build.log 2>/dev/null || true
+          cp WordTUO-AltStore.ipa /tmp/word-tuo-output/ 2>/dev/null || true
+          if [ -f WordTUO-AltStore.ipa ]; then echo "Build succeeded" > /tmp/word-tuo-output/status.txt; else echo "Build failed" > /tmp/word-tuo-output/status.txt; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan word-tuo-output
+          git rm -rf .
+          git clean -fdx
+          cp -R /tmp/word-tuo-output/. .
+          git add .
+          git commit -m "Publish WordTUO IPA build"
+          git push --force origin HEAD:word-tuo-artifacts
