@@ -1,0 +1,40 @@
+name: IELTSMemory
+options:
+  bundleIdPrefix: com.personal
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  IELTSMemory:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    resources:
+      - path: Web
+        type: folder
+      - path: Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.personal.ieltsmemory
+        PRODUCT_NAME: IELTSMemory
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "雅思单词"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleDefault
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+schemes:
+  IELTSMemory:
+    build:
+      targets:
+        IELTSMemory: all
+    run:
+      config: Debug
+    archive:
+      config: Release

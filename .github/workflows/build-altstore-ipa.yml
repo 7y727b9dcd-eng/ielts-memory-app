@@ -1,0 +1,63 @@
+name: Build Listen & Respond IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "AltStore-App/**"
+      - "index.html"
+      - "styles.css"
+      - "app.js"
+      - "icons/**"
+      - ".github/workflows/build-altstore-ipa.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Stage web application
+        run: |
+          rm -rf AltStore-App/Web
+          mkdir -p AltStore-App/Web
+          cp index.html styles.css app.js manifest.webmanifest sw.js AltStore-App/Web/
+          cp -R icons AltStore-App/Web/icons
+
+      - name: Generate Xcode project
+        working-directory: AltStore-App
+        run: xcodegen generate
+
+      - name: Build unsigned iOS app
+        run: |
+          xcodebuild \
+            -project AltStore-App/IELTSMemory.xcodeproj \
+            -scheme IELTSMemory \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/IELTSMemory.app Payload/
+          zip -qry ListenRespond-AltStore.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ListenRespond-AltStore
+          path: ListenRespond-AltStore.ipa
+          if-no-files-found: error

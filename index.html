@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#153f3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="听懂再回应" />
+    <title>听懂再回应</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <button class="brand" data-view-target="home" aria-label="返回首页">
+          <span class="brand-mark" aria-hidden="true">听</span>
+          <span><b>听懂再回应</b><small>把长话变成清楚的信息块</small></span>
+        </button>
+        <button class="icon-button" id="helpButton" aria-label="训练说明">?</button>
+      </header>
+
+      <main>
+        <section class="view active" id="homeView">
+          <div class="hero">
+            <div class="hero-copy">
+              <p class="eyebrow">本周训练计划</p>
+              <h1>先听清，再组织回答。</h1>
+              <p>不再把整段话攒在脑中。练习边听边压缩、保留细节，并在理解准确后逐步提速。</p>
+              <div class="hero-actions">
+                <button class="primary-button" id="primaryStartButton">开始基线测试</button>
+                <button class="secondary-button" id="quickStartButton">5 分钟碎片训练</button>
+              </div>
+            </div>
+            <div class="focus-orbit" aria-hidden="true">
+              <span>谁</span><span>任务</span><span>条件</span><span>时间</span><b>要点</b>
+            </div>
+          </div>
+
+          <section class="metric-grid" aria-label="训练概览">
+            <article class="metric-card"><span>稳定语段</span><strong id="stableDuration">待测</strong><small>能够准确处理的长度</small></article>
+            <article class="metric-card"><span>细节召回</span><strong id="detailRecall">—</strong><small>最近 7 天</small></article>
+            <article class="metric-card"><span>本周完成</span><strong id="weeklySessions">0 / 3</strong><small>不要求连续签到</small></article>
+          </section>
+
+          <section class="training-path">
+            <div class="section-heading">
+              <div><p class="eyebrow">你的训练路径</p><h2>三个环节，练真实理解</h2></div>
+              <button class="text-button" data-view-target="report">查看周报 →</button>
+            </div>
+            <div class="path-grid">
+              <article class="path-card coral"><span class="step-number">01</span><h3>边听边压缩</h3><p>把连续话语整理成“人物、任务、条件、时间、原因”。</p><div class="mini-visual chunks"><i></i><i></i><i></i><i></i></div></article>
+              <article class="path-card mint"><span class="step-number">02</span><h3>渐进式提速</h3><p>一次只增加一个维度：长度、信息量或语速。</p><div class="mini-visual bars"><i></i><i></i><i></i><i></i></div></article>
+              <article class="path-card blue"><span class="step-number">03</span><h3>理解与应答</h3><p>核心意图准确后，再缩短开始回答所需的时间。</p><div class="mini-visual dialogue"><i></i><i></i></div></article>
+            </div>
+          </section>
+
+          <section class="session-panel">
+            <div><p class="eyebrow">系统训练 · 约 20 分钟</p><h2>一次完成完整训练循环</h2><p>分块热身 → 长段理解 → 工作对话应答 → 复盘</p></div>
+            <button class="primary-button light" id="systemStartButton">开始系统训练</button>
+          </section>
+        </section>
+
+        <section class="view" id="trainingView">
+          <div class="training-header">
+            <button class="back-button" id="exitTrainingButton">← 退出</button>
+            <div class="progress-wrap"><span id="sessionLabel">训练</span><div class="progress-track"><i id="sessionProgress"></i></div><span id="sessionCount">1 / 3</span></div>
+          </div>
+          <article class="exercise-card">
+            <div class="exercise-meta"><span id="scenarioCategory">任务交代</span><span id="scenarioStats">约 12 秒 · 4 个信息点</span></div>
+            <div id="exerciseReady" class="exercise-stage active">
+              <p class="eyebrow" id="exerciseStageLabel">边听边压缩</p>
+              <h1 id="exercisePrompt">准备好后，完整听一遍</h1>
+              <p class="stage-help">先不要想回答。尝试在脑中形成“谁—任务—条件—时间—原因”。</p>
+              <button class="audio-button" id="playButton"><span class="play-icon">▶</span><b>播放工作对话</b><small id="playRateLabel">当前语速 0.9×</small></button>
+              <button class="text-button hidden" id="skipAudioButton">音频已结束，开始作答</button>
+              <p class="status-line" id="audioStatus" aria-live="polite"></p>
+            </div>
+            <div id="exerciseAnswer" class="exercise-stage">
+              <p class="eyebrow">现在回答</p>
+              <h2 id="questionPrompt"></h2>
+              <div id="answerArea"></div>
+              <div class="answer-actions">
+                <button class="secondary-button" id="replayButton">再听一遍</button>
+                <button class="primary-button" id="submitAnswerButton">提交答案</button>
+              </div>
+            </div>
+            <div id="exerciseFeedback" class="exercise-stage">
+              <div class="result-ring" id="resultRing"><strong id="resultScore">0%</strong><span>细节召回</span></div>
+              <p class="eyebrow">本题复盘</p>
+              <h2 id="feedbackTitle">你抓住了核心信息</h2>
+              <p id="feedbackMessage"></p>
+              <div class="transcript-box"><span>原始话语</span><p id="feedbackTranscript"></p></div>
+              <div class="info-review" id="infoReview"></div>
+              <button class="primary-button" id="nextExerciseButton">下一题</button>
+            </div>
+          </article>
+          <p class="privacy-note">录音仅在本次练习中使用，结束后自动释放。</p>
+        </section>
+
+        <section class="view" id="reportView">
+          <div class="page-heading"><p class="eyebrow">每周复盘</p><h1>看见具体能力的变化</h1><p>重点观察稳定长度与细节保持，不追求单一总分。</p></div>
+          <section class="report-hero">
+            <div><span>当前稳定语段</span><strong id="reportDuration">待完成基线</strong><small id="reportDifficulty">起始难度尚未确定</small></div>
+            <div class="ring-chart" id="reportRing"><b id="reportRecall">—</b><span>细节召回</span></div>
+          </section>
+          <section class="report-grid">
+            <article class="report-card"><h3>容易遗漏的信息</h3><div id="weakTypeList" class="weak-list"></div></article>
+            <article class="report-card"><h3>最近训练</h3><div id="recentHistory" class="history-list"></div></article>
+          </section>
+          <section class="recommendation" id="recommendation"><span>下周建议</span><p>完成基线测试后，这里会给出针对性训练建议。</p></section>
+        </section>
+
+        <section class="view" id="settingsView">
+          <div class="page-heading"><p class="eyebrow">设置</p><h1>训练偏好与数据</h1></div>
+          <section class="settings-card">
+            <label><span><b>每周系统训练目标</b><small>默认每周三次</small></span><select id="weeklyGoalInput"><option value="2">2 次</option><option value="3">3 次</option><option value="4">4 次</option><option value="5">5 次</option></select></label>
+            <label><span><b>设备朗读语速</b><small>自适应训练会在此基础上调整</small></span><select id="baseRateInput"><option value="0.85">舒缓</option><option value="0.92">自然偏慢</option><option value="1">自然</option></select></label>
+            <label class="toggle-row"><span><b>训练提醒</b><small>当前 PWA 不主动请求通知权限</small></span><input id="reminderInput" type="checkbox" /></label>
+          </section>
+          <section class="settings-card">
+            <div class="setting-copy"><b>本地数据</b><small>新版数据保存在独立 IndexedDB 中，旧雅思数据不会被删除。</small></div>
+            <div class="button-row"><button class="secondary-button" id="exportButton">导出训练记录</button><button class="danger-button" id="resetButton">重置新版数据</button></div>
+          </section>
+          <section class="research-card">
+            <h2>训练依据与边界</h2>
+            <p>软件把工作记忆、快速语音适应和对话轮替研究转化为练习，但不是医疗诊断或治疗。如果困难突然出现或明显加重，请优先进行听力或专业评估。</p>
+            <details><summary>查看主要研究</summary><ul><li>Waters &amp; Caplan (2005)：工作记忆与篇章理解</li><li>Rotman et al. (2017)：从容易到困难的压缩语音训练</li><li>Corps et al. (2018)：提前组织回答与理解之间的权衡</li></ul></details>
+          </section>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="主导航">
+        <button class="active" data-view-target="home"><span>⌂</span>今天</button>
+        <button data-view-target="report"><span>⌁</span>周报</button>
+        <button data-view-target="settings"><span>⚙</span>设置</button>
+      </nav>
+    </div>
+
+    <dialog id="helpDialog">
+      <div class="dialog-header"><div><p class="eyebrow">训练方法</p><h2>不是背原句，而是更新结构</h2></div><button class="icon-button" id="closeHelpButton" aria-label="关闭">×</button></div>
+      <ol class="method-list"><li><b>听人物与动作</b><span>先确认是谁，需要做什么。</span></li><li><b>补条件与时间</b><span>把限制、截止点和原因挂到任务上。</span></li><li><b>最后再组织回答</b><span>先保证理解，再逐步缩短应答时间。</span></li></ol>
+      <button class="primary-button full" id="helpStartButton">开始练习</button>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "听懂再回应",
+  "short_name": "听懂再回应",
+  "description": "面向中文工作对话的长段理解、细节保持与应答协调训练。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f2ea",
+  "theme_color": "#153f3a",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

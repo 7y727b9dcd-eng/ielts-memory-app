@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+build/
+DerivedData/
+Payload/
+*.xcuserstate
+*.xcuserdata/
+AltStore-App/IELTSMemory.xcodeproj/
