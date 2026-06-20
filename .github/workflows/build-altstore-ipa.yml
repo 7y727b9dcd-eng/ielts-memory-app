@@ -16,7 +16,7 @@ jobs:
   build:
     runs-on: macos-15
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Check out repository
@@ -38,6 +38,7 @@ jobs:
 
       - name: Build unsigned iOS app
         run: |
+          set -o pipefail
           xcodebuild \
             -project AltStore-App/IELTSMemory.xcodeproj \
             -scheme IELTSMemory \
@@ -47,7 +48,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            clean build
+            clean build 2>&1 | tee build.log
 
       - name: Package IPA
         run: |
@@ -56,8 +57,29 @@ jobs:
           zip -qry ListenRespond-AltStore.ipa Payload
 
       - name: Upload IPA
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ListenRespond-AltStore
           path: ListenRespond-AltStore.ipa
           if-no-files-found: error
+
+      - name: Publish downloadable build branch
+        if: always()
+        run: |
+          mkdir -p /tmp/ielts-build-output
+          cp build.log /tmp/ielts-build-output/build.log 2>/dev/null || true
+          cp ListenRespond-AltStore.ipa /tmp/ielts-build-output/ 2>/dev/null || true
+          if [ -f ListenRespond-AltStore.ipa ]; then
+            echo "Build succeeded" > /tmp/ielts-build-output/status.txt
+          else
+            echo "Build failed; inspect build.log" > /tmp/ielts-build-output/status.txt
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan ipa-artifacts-output
+          git rm -rf .
+          cp -R /tmp/ielts-build-output/. .
+          git add .
+          git commit -m "Publish AltStore IPA build"
+          git push --force origin HEAD:ipa-artifacts
