@@ -5,6 +5,7 @@ Thumbs.db
 build/
 DerivedData/
 Payload/
+dist/
 *.xcuserstate
 *.xcuserdata/
 AltStore-App/IELTSMemory.xcodeproj/
