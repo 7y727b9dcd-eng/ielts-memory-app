@@ -79,6 +79,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout --orphan ipa-artifacts-output
           git rm -rf .
+          git clean -fdx
           cp -R /tmp/ielts-build-output/. .
           git add .
           git commit -m "Publish AltStore IPA build"

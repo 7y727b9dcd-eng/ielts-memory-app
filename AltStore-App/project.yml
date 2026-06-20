@@ -13,10 +13,11 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-    resources:
       - path: Web
         type: folder
+        buildPhase: resources
       - path: Assets.xcassets
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.personal.ieltsmemory
