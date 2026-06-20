@@ -36,6 +36,6 @@ final class LocalSchemeHandler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
 
     private func fail(_ task: WKURLSchemeTask, message: String) {
-        task.didFailWithError(NSError(domain: "IELTSMemory", code: 404, userInfo: [NSLocalizedDescriptionKey: message]))
+        task.didFailWithError(NSError(domain: "ListeningTraining", code: 404, userInfo: [NSLocalizedDescriptionKey: message]))
     }
 }

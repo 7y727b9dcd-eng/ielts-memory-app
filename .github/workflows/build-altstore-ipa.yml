@@ -1,4 +1,4 @@
-name: Build Listen & Respond IPA
+name: Build Listening Training IPA
 
 on:
   workflow_dispatch:
@@ -9,6 +9,8 @@ on:
       - "index.html"
       - "styles.css"
       - "app.js"
+      - "manifest.webmanifest"
+      - "sw.js"
       - "icons/**"
       - ".github/workflows/build-altstore-ipa.yml"
 
@@ -40,8 +42,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild \
-            -project AltStore-App/IELTSMemory.xcodeproj \
-            -scheme IELTSMemory \
+            -project AltStore-App/ListeningTraining.xcodeproj \
+            -scheme ListeningTraining \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
@@ -53,15 +55,15 @@ jobs:
       - name: Package IPA
         run: |
           mkdir -p Payload
-          cp -R build/Build/Products/Release-iphoneos/IELTSMemory.app Payload/
-          zip -qry ListenRespond-AltStore.ipa Payload
+          cp -R build/Build/Products/Release-iphoneos/ListeningTraining.app Payload/
+          zip -qry ListeningTraining-AltStore.ipa Payload
 
       - name: Upload IPA
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: ListenRespond-AltStore
-          path: ListenRespond-AltStore.ipa
+          name: ListeningTraining-AltStore
+          path: ListeningTraining-AltStore.ipa
           if-no-files-found: error
 
       - name: Publish downloadable build branch
@@ -69,8 +71,8 @@ jobs:
         run: |
           mkdir -p /tmp/ielts-build-output
           cp build.log /tmp/ielts-build-output/build.log 2>/dev/null || true
-          cp ListenRespond-AltStore.ipa /tmp/ielts-build-output/ 2>/dev/null || true
-          if [ -f ListenRespond-AltStore.ipa ]; then
+          cp ListeningTraining-AltStore.ipa /tmp/ielts-build-output/ 2>/dev/null || true
+          if [ -f ListeningTraining-AltStore.ipa ]; then
             echo "Build succeeded" > /tmp/ielts-build-output/status.txt
           else
             echo "Build failed; inspect build.log" > /tmp/ielts-build-output/status.txt

@@ -1,5 +1,7 @@
 "use strict";
 
+document.documentElement.dataset.scriptLoaded = "true";
+
 const DB_NAME = "listen-respond-training";
 const DB_VERSION = 1;
 const PROFILE_KEY = "training-profile-v1";
@@ -122,9 +124,24 @@ let toastTimer = null;
 
 const $ = (id) => document.getElementById(id);
 
-document.addEventListener("DOMContentLoaded", initialize);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => initialize().catch(reportFatalError), { once: true });
+} else {
+  initialize().catch(reportFatalError);
+}
+
+function reportFatalError(error) {
+  console.error("Application initialization failed", error);
+  document.documentElement.dataset.appReady = "error";
+  const toast = document.getElementById("toast");
+  if (toast) {
+    toast.textContent = "应用初始化失败，请刷新页面后重试";
+    toast.classList.add("show");
+  }
+}
 
 async function initialize() {
+  validateScenarioCatalog();
   bindNavigation();
   bindActions();
   try {
@@ -139,6 +156,27 @@ async function initialize() {
   syncSettingsForm();
   renderDashboard();
   registerServiceWorker();
+  document.documentElement.dataset.appReady = "true";
+  const params = new URLSearchParams(location.search);
+  const requestedMode = params.get("mode");
+  const requestedView = params.get("view");
+  if (["baseline", "quick", "system"].includes(requestedMode)) {
+    startSession(profile.baselineComplete ? requestedMode : "baseline");
+  } else if (["home", "report", "settings"].includes(requestedView)) {
+    switchView(requestedView);
+  }
+}
+
+function validateScenarioCatalog() {
+  const ids = new Set();
+  SCENARIOS.forEach((scenario) => {
+    if (!scenario.id || ids.has(scenario.id)) throw new Error(`Invalid or duplicate scenario id: ${scenario.id}`);
+    ids.add(scenario.id);
+    if (!scenario.text || !Array.isArray(scenario.info) || scenario.info.length !== scenario.units) throw new Error(`Invalid information units: ${scenario.id}`);
+    if (!['choice', 'order', 'voice'].includes(scenario.responseType)) throw new Error(`Invalid response type: ${scenario.id}`);
+    if (scenario.responseType === 'choice' && (!Array.isArray(scenario.options) || !scenario.options[scenario.correct])) throw new Error(`Invalid choice answer: ${scenario.id}`);
+    if (scenario.responseType === 'order' && (!Array.isArray(scenario.orderItems) || scenario.orderItems.length !== scenario.orderAnswer.length)) throw new Error(`Invalid order answer: ${scenario.id}`);
+  });
 }
 
 function bindNavigation() {
@@ -148,7 +186,11 @@ function bindNavigation() {
 }
 
 function bindActions() {
-  $("primaryStartButton").addEventListener("click", () => startSession(profile.baselineComplete ? "system" : "baseline"));
+  $("primaryStartButton").dataset.bound = "true";
+  $("primaryStartButton").addEventListener("click", () => {
+    $("primaryStartButton").dataset.clicked = "true";
+    startSession(profile.baselineComplete ? "system" : "baseline");
+  });
   $("quickStartButton").addEventListener("click", () => startSession(profile.baselineComplete ? "quick" : "baseline"));
   $("systemStartButton").addEventListener("click", () => startSession(profile.baselineComplete ? "system" : "baseline"));
   $("exitTrainingButton").addEventListener("click", exitTraining);
@@ -183,7 +225,7 @@ function startSession(mode) {
   stopSpeech();
   cleanupRecording();
   const queue = mode === "baseline" ? SCENARIOS.filter((item) => item.baseline) : selectTrainingScenarios(mode === "quick" ? 3 : 7);
-  session = { mode, queue, index: 0, results: [], replayCount: 0, audioFinishedAt: null, firstActionAt: null, selected: null, order: [], checkedUnits: [], voiceSelfChecking: false };
+  session = { id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, mode, queue, index: 0, results: [], replayCount: 0, audioFinishedAt: null, firstActionAt: null, selected: null, order: [], checkedUnits: [], voiceSelfChecking: false };
   switchView("training");
   renderExercise();
 }
@@ -192,7 +234,7 @@ function selectTrainingScenarios(count) {
   const target = profile.difficulty.level;
   const recentIds = attempts.slice(-5).map((item) => item.scenarioId);
   let pool = SCENARIOS.filter((item) => !item.baseline && Math.abs(item.level - target) <= 1 && !recentIds.includes(item.id));
-  if (pool.length < count) pool = SCENARIOS.filter((item) => !item.baseline && Math.abs(item.level - target) <= 1);
+  if (pool.length < count) pool = SCENARIOS.filter((item) => !item.baseline);
   return shuffle(pool).slice(0, count);
 }
 
@@ -233,7 +275,8 @@ function currentScenario() { return session?.queue[session.index]; }
 
 function effectiveRate(scenario) {
   const adaptiveOffset = profile.baselineComplete ? profile.difficulty.rate - 0.92 : 0;
-  return Math.max(0.8, Math.min(1.25, (scenario.rate || settings.baseRate) + adaptiveOffset));
+  const preferenceOffset = settings.baseRate - 0.92;
+  return Math.max(0.8, Math.min(1.25, (scenario.rate || 0.92) + preferenceOffset + adaptiveOffset));
 }
 
 function playCurrentScenario() {
@@ -293,6 +336,7 @@ function renderAnswerStage() {
   setStage("exerciseAnswer");
   $("questionPrompt").textContent = scenario.question;
   $("submitAnswerButton").disabled = true;
+  $("submitAnswerButton").textContent = "提交答案";
   const area = $("answerArea");
   area.innerHTML = "";
   if (scenario.responseType === "choice") renderChoice(area, scenario);
@@ -443,6 +487,7 @@ async function finalizeAttempt(scores) {
   const attempt = {
     id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
     scenarioId: scenario.id,
+    sessionId: session.id,
     category: scenario.category,
     mode: session.mode,
     completedAt: new Date().toISOString(),
@@ -578,8 +623,8 @@ function attemptsThisWeek() {
 }
 
 function uniqueSessionsThisWeek() {
-  const dates = new Set(attemptsThisWeek().filter((item) => item.mode === "system").map((item) => item.completedAt.slice(0,10)));
-  return dates.size;
+  const ids = new Set(attemptsThisWeek().filter((item) => item.mode === "system").map((item) => item.sessionId || item.completedAt.slice(0,10)));
+  return ids.size;
 }
 
 function syncSettingsForm() {
@@ -598,18 +643,18 @@ async function saveSettings() {
 }
 
 function exportData() {
-  const payload = { app: "听懂再回应", version: 1, exportedAt: new Date().toISOString(), profile, settings, attempts };
+  const payload = { app: "聆听训练", version: 1, exportedAt: new Date().toISOString(), profile, settings, attempts };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `听懂再回应-训练记录-${new Date().toISOString().slice(0,10)}.json`;
+  anchor.download = `聆听训练-训练记录-${new Date().toISOString().slice(0,10)}.json`;
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function resetNewData() {
-  if (!confirm("只重置“听懂再回应”的训练记录和基线结果。旧雅思数据不会被删除。确定继续吗？")) return;
+  if (!confirm("只重置“聆听训练”的训练记录和基线结果。旧雅思数据不会被删除。确定继续吗？")) return;
   if (db) {
     await transactionPromise("attempts", "readwrite", (store) => store.clear());
     await setMeta(PROFILE_KEY, defaultProfile);

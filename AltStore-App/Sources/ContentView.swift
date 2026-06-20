@@ -16,17 +16,18 @@ struct WebAppView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
-        configuration.setURLSchemeHandler(LocalSchemeHandler(), forURLScheme: "ielts")
+        configuration.setURLSchemeHandler(LocalSchemeHandler(), forURLScheme: "listentraining")
         configuration.userContentController.add(context.coordinator, name: "shareBackup")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isOpaque = false
-        webView.backgroundColor = UIColor(red: 0.965, green: 0.973, blue: 0.949, alpha: 1)
+        webView.backgroundColor = UIColor(red: 0.961, green: 0.949, blue: 0.918, alpha: 1)
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.allowsBackForwardNavigationGestures = false
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
 
-        if let url = URL(string: "ielts://app/index.html") {
+        if let url = URL(string: "listentraining://app/index.html") {
             webView.load(URLRequest(url: url))
         }
         return webView
@@ -38,10 +39,10 @@ struct WebAppView: UIViewRepresentable {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "shareBackup")
     }
 
-    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == "shareBackup", let json = message.body as? String else { return }
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("ielts-memory-backup.json")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("listening-training-backup.json")
 
             do {
                 try json.write(to: url, atomically: true, encoding: .utf8)
@@ -49,6 +50,16 @@ struct WebAppView: UIViewRepresentable {
             } catch {
                 return
             }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+            initiatedByFrame frame: WKFrameInfo,
+            type: WKMediaCaptureType,
+            decisionHandler: @escaping (WKPermissionDecision) -> Void
+        ) {
+            decisionHandler(.prompt)
         }
 
         private func presentShareSheet(for url: URL) {

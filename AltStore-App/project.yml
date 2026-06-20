@@ -1,4 +1,4 @@
-name: IELTSMemory
+name: ListeningTraining
 options:
   bundleIdPrefix: com.personal
   deploymentTarget:
@@ -8,7 +8,7 @@ settings:
     SWIFT_VERSION: "5.9"
     CODE_SIGN_STYLE: Automatic
 targets:
-  IELTSMemory:
+  ListeningTraining:
     type: application
     platform: iOS
     sources:
@@ -20,21 +20,22 @@ targets:
         buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.personal.ieltsmemory
-        PRODUCT_NAME: IELTSMemory
+        PRODUCT_BUNDLE_IDENTIFIER: com.personal.listeningtraining
+        PRODUCT_NAME: ListeningTraining
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: "雅思单词"
+        INFOPLIST_KEY_CFBundleDisplayName: "聆听训练"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "用于录制并回放训练回答，录音不会上传。"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleDefault
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 schemes:
-  IELTSMemory:
+  ListeningTraining:
     build:
       targets:
-        IELTSMemory: all
+        ListeningTraining: all
     run:
       config: Debug
     archive:
