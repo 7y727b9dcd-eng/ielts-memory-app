@@ -5,7 +5,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "project-001-个人雅思单词记忆/**"
+      - "project-001-个人雅思单词记忆/04-实现/web/**"
+      - "project-001-个人雅思单词记忆/04-实现/ios/**"
       - ".github/workflows/build-word-tuo-ipa.yml"
 
 jobs:
