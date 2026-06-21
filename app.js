@@ -277,7 +277,8 @@ function startSession(mode, focus = null) {
   let queue;
   if (mode === "baseline") queue = SCENARIOS.filter((item) => item.baseline);
   else if (mode === "focus") queue = selectFocusedScenarios(focus);
-  else queue = selectTrainingScenarios(mode === "quick" ? 3 : 7);
+  else if (mode === "quick") queue = selectTrainingScenarios(3);
+  else queue = selectSystemScenarios();
   if (!queue.length) {
     showToast("当前训练暂时没有可用题目");
     return;
@@ -293,15 +294,27 @@ function selectFocusedScenarios(focus) {
 }
 
 function selectTrainingScenarios(count) {
-  const target = profile.difficulty.level;
-  const targetUnits = profile.difficulty.infoUnits;
   const recentIds = attempts.slice(-5).map((item) => item.scenarioId);
-  let pool = SCENARIOS.filter((item) => !item.baseline && Math.abs(item.level - target) <= 1 && !recentIds.includes(item.id));
+  let pool = SCENARIOS.filter((item) => !item.baseline && Math.abs(item.level - profile.difficulty.level) <= 1 && !recentIds.includes(item.id));
   if (pool.length < count) pool = SCENARIOS.filter((item) => !item.baseline);
-  return shuffle(pool)
-    .map((item) => ({ item, distance: Math.abs(item.level - target) * 2 + Math.abs(item.units - targetUnits) }))
-    .sort((a, b) => a.distance - b.distance)
+  return rankScenarios(pool).slice(0, count);
+}
+
+function selectSystemScenarios() {
+  const selectPhase = (focus, count) => rankScenarios(SCENARIOS.filter((item) => !item.baseline && item.focus === focus))
     .slice(0, count)
+    .sort((a, b) => a.duration - b.duration);
+  return [
+    ...selectPhase("chunk", 2),
+    ...selectPhase("speed", 2),
+    ...selectPhase("response", 3),
+  ];
+}
+
+function rankScenarios(items) {
+  return shuffle(items)
+    .map((item) => ({ item, distance: Math.abs(item.level - profile.difficulty.level) * 2 + Math.abs(item.units - profile.difficulty.infoUnits) }))
+    .sort((a, b) => a.distance - b.distance)
     .map(({ item }) => item);
 }
 
@@ -579,6 +592,7 @@ async function finalizeAttempt(scores) {
     capturedTypes: scores.captured.map((index) => scenario.info[index]?.type).filter(Boolean),
     missedTypes: scenario.info.filter((_, index) => !scores.captured.includes(index)).map((unit) => unit.type),
     recordingUsed: Boolean(recordingUrl),
+    sessionComplete: false,
   };
   session.results.push(attempt);
   attempts.push(attempt);
@@ -608,6 +622,7 @@ function advanceSession() {
 async function completeSession() {
   const results = session.results;
   const average = results.length ? results.reduce((sum, item) => sum + item.detailScore, 0) / results.length : 0;
+  await markSessionComplete(results);
   if (session.mode === "baseline") {
     const passed = results.filter((item) => item.detailScore >= 0.7);
     profile.baselineComplete = true;
@@ -624,6 +639,12 @@ async function completeSession() {
   renderDashboard();
   renderReport();
   switchView("report");
+}
+
+async function markSessionComplete(results) {
+  results.forEach((attempt) => { attempt.sessionComplete = true; });
+  if (db) await Promise.all(results.map((attempt) => putAttempt(attempt)));
+  else persistFallbackState();
 }
 
 function adaptDifficulty() {
@@ -690,7 +711,7 @@ function renderWeakTypes(items) {
 
 function renderHistory() {
   const recent = [...attempts].reverse().slice(0,5);
-  $("recentHistory").innerHTML = recent.length ? recent.map((item) => `<div class="history-row"><div><b>${escapeHtml(item.category)}</b><small>${formatDate(item.completedAt)} · ${item.duration} 秒</small></div><strong>${Math.round(item.detailScore * 100)}%</strong></div>`).join("") : '<p class="empty-state">还没有训练记录。</p>';
+  $("recentHistory").innerHTML = recent.length ? recent.map((item) => `<div class="history-row"><div><b>${escapeHtml(item.category)}</b><small>${formatDate(item.completedAt)} · ${item.duration} 秒${item.mode === "system" && item.sessionComplete === false ? " · 中断" : ""}</small></div><strong>${Math.round(item.detailScore * 100)}%</strong></div>`).join("") : '<p class="empty-state">还没有训练记录。</p>';
 }
 
 function renderRecommendation(week, recall) {
@@ -708,8 +729,13 @@ function attemptsThisWeek() {
 }
 
 function uniqueSessionsThisWeek() {
-  const ids = new Set(attemptsThisWeek().filter((item) => item.mode === "system").map((item) => item.sessionId || item.completedAt.slice(0,10)));
-  return ids.size;
+  const groups = new Map();
+  attemptsThisWeek().filter((item) => item.mode === "system").forEach((item) => {
+    const id = item.sessionId || item.completedAt.slice(0,10);
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(item);
+  });
+  return [...groups.values()].filter((items) => items.some((item) => item.sessionComplete === true) || items.length >= 7).length;
 }
 
 function syncSettingsForm() {
