@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=8" />
+    <link rel="stylesheet" href="./styles.css?v=9" />
   </head>
   <body>
     <div class="app-shell">
@@ -43,7 +43,7 @@
           <section class="metric-grid" aria-label="训练概览">
             <article class="metric-card"><span>稳定语段</span><strong id="stableDuration">待测</strong><small>能够准确处理的长度</small></article>
             <article class="metric-card"><span>细节召回</span><strong id="detailRecall">—</strong><small>最近 7 天</small></article>
-            <article class="metric-card"><span>本周完成</span><strong id="weeklySessions">0 / 3</strong><small>不要求连续签到</small></article>
+            <article class="metric-card"><span>系统训练</span><strong id="weeklySessions">0 / 3</strong><small>本周完成次数</small></article>
           </section>
 
           <section class="training-path">
@@ -52,9 +52,9 @@
               <button class="text-button" data-view-target="report">查看周报 →</button>
             </div>
             <div class="path-grid">
-              <article class="path-card coral"><span class="step-number">01</span><h3>边听边压缩</h3><p>把连续话语整理成“人物、任务、条件、时间、原因”。</p><div class="mini-visual chunks"><i></i><i></i><i></i><i></i></div></article>
-              <article class="path-card mint"><span class="step-number">02</span><h3>渐进式提速</h3><p>一次只增加一个维度：长度、信息量或语速。</p><div class="mini-visual bars"><i></i><i></i><i></i><i></i></div></article>
-              <article class="path-card blue"><span class="step-number">03</span><h3>理解与应答</h3><p>核心意图准确后，再缩短开始回答所需的时间。</p><div class="mini-visual dialogue"><i></i><i></i></div></article>
+              <button class="path-card coral" type="button" data-focus="chunk"><span class="step-number">01 · 专项训练</span><h3>边听边压缩</h3><p>把连续话语整理成“人物、任务、条件、时间、原因”。</p><span class="card-action">开始 4 题训练 →</span><div class="mini-visual chunks"><i></i><i></i><i></i><i></i></div></button>
+              <button class="path-card mint" type="button" data-focus="speed"><span class="step-number">02 · 专项训练</span><h3>渐进式提速</h3><p>从自然语速开始，逐步增加长度、信息量与表达速度。</p><span class="card-action">开始 4 题训练 →</span><div class="mini-visual bars"><i></i><i></i><i></i><i></i></div></button>
+              <button class="path-card blue" type="button" data-focus="response"><span class="step-number">03 · 专项训练</span><h3>理解与应答</h3><p>先确认意图和约束，再用结构化语言组织口头回答。</p><span class="card-action">开始 4 题训练 →</span><div class="mini-visual dialogue"><i></i><i></i></div></button>
             </div>
           </section>
 
@@ -107,6 +107,11 @@
             <div><span>当前稳定语段</span><strong id="reportDuration">待完成基线</strong><small id="reportDifficulty">起始难度尚未确定</small></div>
             <div class="ring-chart" id="reportRing"><b id="reportRecall">—</b><span>细节召回</span></div>
           </section>
+          <section class="report-metrics" aria-label="本周训练质量">
+            <article><span>核心意图</span><strong id="reportIntent">—</strong><small>理解方向是否准确</small></article>
+            <article><span>一次听懂</span><strong id="reportOnePass">—</strong><small>无需重复播放</small></article>
+            <article><span>回答启动</span><strong id="reportLatency">—</strong><small>听完到开始作答</small></article>
+          </section>
           <section class="report-grid">
             <article class="report-card"><h3>容易遗漏的信息</h3><div id="weakTypeList" class="weak-list"></div></article>
             <article class="report-card"><h3>最近训练</h3><div id="recentHistory" class="history-list"></div></article>
@@ -119,10 +124,11 @@
           <section class="settings-card">
             <label><span><b>每周系统训练目标</b><small>默认每周三次</small></span><select id="weeklyGoalInput"><option value="2">2 次</option><option value="3">3 次</option><option value="4">4 次</option><option value="5">5 次</option></select></label>
             <label><span><b>设备朗读语速</b><small>自适应训练会在此基础上调整</small></span><select id="baseRateInput"><option value="0.85">舒缓</option><option value="0.92">自然偏慢</option><option value="1">自然</option></select></label>
-            <label class="toggle-row"><span><b>训练提醒</b><small>当前 PWA 不主动请求通知权限</small></span><input id="reminderInput" type="checkbox" /></label>
+            <label class="toggle-row"><span><b>训练提醒</b><small>按每周目标分散安排本地通知</small></span><input id="reminderInput" type="checkbox" /></label>
+            <label><span><b>提醒时间</b><small>仅在开启训练提醒后生效</small></span><input id="reminderTimeInput" type="time" value="20:00" /></label>
           </section>
           <section class="settings-card">
-            <div class="setting-copy"><b>本地数据</b><small>新版数据保存在独立 IndexedDB 中，旧雅思数据不会被删除。</small></div>
+            <div class="setting-copy"><b>本地数据</b><small id="storageStatus">正在检查本地存储…</small></div>
             <div class="button-row"><button class="secondary-button" id="exportButton">导出训练记录</button><button class="danger-button" id="resetButton">重置新版数据</button></div>
           </section>
           <section class="research-card">
@@ -134,9 +140,9 @@
       </main>
 
       <nav class="bottom-nav" aria-label="主导航">
-        <button class="active" data-view-target="home"><span>⌂</span>今天</button>
-        <button data-view-target="report"><span>⌁</span>周报</button>
-        <button data-view-target="settings"><span>⚙</span>设置</button>
+        <a class="active" href="#home" data-view-target="home"><span>⌂</span>今天</a>
+        <a href="#report" data-view-target="report"><span>⌁</span>周报</a>
+        <a href="#settings" data-view-target="settings"><span>⚙</span>设置</a>
       </nav>
     </div>
 
@@ -147,6 +153,6 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=8" charset="UTF-8"></script>
+    <script src="./app.js?v=9" charset="UTF-8"></script>
   </body>
 </html>

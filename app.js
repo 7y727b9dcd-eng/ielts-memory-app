@@ -6,6 +6,7 @@ const DB_NAME = "listen-respond-training";
 const DB_VERSION = 1;
 const PROFILE_KEY = "training-profile-v1";
 const SETTINGS_KEY = "training-settings-v1";
+const FALLBACK_KEY = "listening-training-fallback-v1";
 
 const INFO_LABELS = {
   person: "人物",
@@ -54,52 +55,76 @@ const SCENARIOS = [
     options: ["周三下午演示，数据变化时只更新图表", "周二上午演示，并增加客户要求的新功能", "周三上午演示，技术问题由林悦回答", "周一完成演示后不再进行内部演练"], correct: 0,
   },
   {
-    id: "task-handoff-1", level: 1, category: "任务交代", stage: "边听边压缩", duration: 12, units: 4, rate: 0.9, responseType: "choice",
+    id: "task-handoff-1", focus: "chunk", level: 1, category: "任务交代", stage: "边听边压缩", duration: 12, units: 4, rate: 0.9, responseType: "choice",
     text: "请把供应商的新报价和上个月的版本做个对比，重点标出涨价超过百分之五的项目，明天上午十点前发给我。",
     info: [{ type: "action", text: "对比新旧报价" }, { type: "condition", text: "标出涨价超过 5% 的项目" }, { type: "time", text: "明天上午十点前" }, { type: "person", text: "发给任务交代人" }],
     question: "需要重点标出什么？", options: ["所有价格变化", "涨价超过 5% 的项目", "上月新增项目", "供应商联系方式"], correct: 1,
   },
   {
-    id: "feedback-1", level: 1, category: "意见反馈", stage: "理解与应答", duration: 14, units: 4, rate: 0.94, responseType: "voice",
+    id: "feedback-1", focus: "response", level: 1, category: "意见反馈", stage: "理解与应答", duration: 14, units: 4, rate: 0.94, responseType: "voice",
     text: "这份总结的数据很完整，不过结论部分有点长。你保留前三条主要发现，每条控制在两句话以内，具体计算过程放到附件里就可以。",
     info: [{ type: "result", text: "数据完整" }, { type: "result", text: "结论过长" }, { type: "condition", text: "只保留前三条发现，每条两句话内" }, { type: "action", text: "计算过程移到附件" }],
     question: "先确认你理解的修改要求，再说明你会怎么处理。", responseTemplate: "我理解需要……，我会先……，然后……。",
   },
   {
-    id: "progress-1", level: 2, category: "进度同步", stage: "保留顺序", duration: 20, units: 5, rate: 0.96, responseType: "order",
+    id: "progress-1", focus: "chunk", level: 2, category: "进度同步", stage: "保留顺序", duration: 20, units: 5, rate: 0.96, responseType: "order",
     text: "调研问卷今天已经关闭，运营下午会清理无效回答。明天上午数据组开始分析，周五给出第一版结论，确认方向以后再请设计做汇报页面。",
     info: [{ type: "result", text: "问卷已关闭" }, { type: "action", text: "运营清理无效回答" }, { type: "time", text: "明早开始分析" }, { type: "time", text: "周五给第一版结论" }, { type: "condition", text: "确认方向后再做汇报页面" }],
     question: "还原这项工作的推进顺序", orderItems: ["关闭问卷", "清理无效回答", "分析数据", "给出第一版结论", "制作汇报页面"], orderAnswer: [0,1,2,3,4],
   },
   {
-    id: "meeting-1", level: 2, category: "会议讨论", stage: "长段理解", duration: 24, units: 6, rate: 0.98, responseType: "choice",
+    id: "meeting-1", focus: "speed", level: 2, category: "会议讨论", stage: "长段理解", duration: 24, units: 6, rate: 0.98, responseType: "choice",
     text: "这次活动预算先维持八万元不变。场地报价比预期高，所以把礼品数量从三百份降到两百份，但不要降低餐饮标准。市场部今天确认场地，行政周四前锁定餐饮，剩余预算留给现场物料。",
     info: [{ type: "condition", text: "总预算八万元不变" }, { type: "reason", text: "场地报价偏高" }, { type: "action", text: "礼品降到两百份" }, { type: "condition", text: "餐饮标准不降低" }, { type: "time", text: "今天确认场地，周四锁定餐饮" }, { type: "result", text: "余款用于现场物料" }],
     question: "预算调整的原则是什么？", options: ["增加预算保证礼品数量", "减少礼品但保持餐饮标准", "降低餐饮标准保留三百份礼品", "取消现场物料以支付场地"], correct: 1,
   },
   {
-    id: "problem-2", level: 2, category: "问题解释", stage: "结构化复述", duration: 26, units: 6, rate: 1, responseType: "voice",
+    id: "problem-2", focus: "chunk", level: 2, category: "问题解释", stage: "结构化复述", duration: 26, units: 6, rate: 1, responseType: "voice",
     text: "客服这两天收到的重复投诉突然变多，初步看不是产品故障，而是帮助中心的旧链接仍然排在搜索结果前面。内容团队今晚会更新跳转，客服暂时统一回复新链接，明天下午再看投诉量有没有下降。",
     info: [{ type: "result", text: "重复投诉变多" }, { type: "condition", text: "不是产品故障" }, { type: "reason", text: "旧链接搜索排名靠前" }, { type: "action", text: "今晚更新跳转" }, { type: "action", text: "客服统一回复新链接" }, { type: "time", text: "明天下午观察投诉量" }],
     question: "向同事复述问题判断、临时措施和检查时间。", responseTemplate: "目前判断……，今晚先……，明天下午再……。",
   },
   {
-    id: "task-handoff-3", level: 3, category: "任务交代", stage: "长段理解", duration: 32, units: 7, rate: 1.02, responseType: "order",
+    id: "task-handoff-3", focus: "speed", level: 3, category: "任务交代", stage: "长段理解", duration: 32, units: 7, rate: 1.02, responseType: "order",
     text: "月底复盘会之前要准备三份材料。你先向财务确认实际支出，拿到数字后更新项目成本表；同时请运营补充活动转化数据。两边资料齐了以后再写复盘结论，结论不要超过一页。成本表周三完成，完整材料周四下班前发给参会人。",
     info: [{ type: "action", text: "向财务确认支出" }, { type: "action", text: "更新成本表" }, { type: "action", text: "请运营补充转化数据" }, { type: "condition", text: "资料齐后写结论" }, { type: "condition", text: "结论不超过一页" }, { type: "time", text: "成本表周三完成" }, { type: "time", text: "周四下班前发完整材料" }],
     question: "按依赖关系还原主要步骤", orderItems: ["确认支出并收集转化数据", "更新项目成本表", "资料齐后写结论", "周四发送完整材料"], orderAnswer: [0,1,2,3],
   },
   {
-    id: "meeting-3", level: 3, category: "会议讨论", stage: "理解与应答", duration: 38, units: 8, rate: 1.04, responseType: "voice",
+    id: "meeting-3", focus: "response", level: 3, category: "会议讨论", stage: "理解与应答", duration: 38, units: 8, rate: 1.04, responseType: "voice",
     text: "新员工培训原定线上完成，但上次反馈说互动不足，所以第一天改为线下，后两天仍然线上。人力负责场地和课程通知，业务部门各派一位同事参加第一天下午的答疑。课程资料要在培训前三天上传，讲师如果修改案例，必须在当天中午前告诉人力。由于会议室只能坐四十人，超过的人安排到下个月，不临时更换更大的场地。",
     info: [{ type: "condition", text: "第一天线下，后两天线上" }, { type: "reason", text: "上次反馈互动不足" }, { type: "person", text: "人力负责场地和通知" }, { type: "person", text: "业务部门派人答疑" }, { type: "time", text: "资料提前三天上传" }, { type: "time", text: "案例修改当天中午前通知" }, { type: "condition", text: "会议室上限四十人" }, { type: "result", text: "超员安排到下个月" }],
     question: "作为执行人，确认形式、分工、截止时间和人数限制。", responseTemplate: "我确认培训形式是……，分工是……，需要在……前完成，人数方面……。",
   },
   {
-    id: "feedback-3", level: 3, category: "意见反馈", stage: "长段理解", duration: 40, units: 8, rate: 1.05, responseType: "choice",
+    id: "feedback-3", focus: "speed", level: 3, category: "意见反馈", stage: "长段理解", duration: 40, units: 8, rate: 1.05, responseType: "choice",
     text: "方案整体方向可以继续，但目前的用户数据只覆盖老客户，不能直接支持新市场判断。先保留现有结论作为参考，再从最近三个月的新注册用户里抽取两百人补做访谈。研究团队周五给出访谈提纲，下周二开始联系用户。因为发布时间不变，产品原型可以同步推进，不过最终文案要等新访谈结果出来以后再定。",
     info: [{ type: "result", text: "方案方向可继续" }, { type: "condition", text: "现有数据只覆盖老客户" }, { type: "condition", text: "旧结论仅作参考" }, { type: "action", text: "访谈两百名新注册用户" }, { type: "time", text: "周五出提纲" }, { type: "time", text: "下周二联系用户" }, { type: "action", text: "原型同步推进" }, { type: "condition", text: "最终文案等待访谈结果" }],
     question: "哪些工作可以立即继续，哪些必须等待？", options: ["原型可推进，最终文案等待新访谈", "所有工作都等访谈结束后开始", "最终文案先定，原型等待新数据", "取消新访谈，直接使用老客户结论"], correct: 0,
+  },
+  {
+    id: "chunk-brief-2", focus: "chunk", level: 1, category: "任务交代", stage: "边听边压缩", duration: 18, units: 5, rate: 0.92, responseType: "order",
+    text: "王然先把合同里的交付日期改到八月十五日，再请法务确认违约条款。法务回复以后，把最终版本发给供应商，今天不要先发旧文件。",
+    info: [{ type: "person", text: "王然负责修改" }, { type: "action", text: "交付日期改到八月十五日" }, { type: "action", text: "请法务确认违约条款" }, { type: "condition", text: "法务回复后再发供应商" }, { type: "condition", text: "不发送旧文件" }],
+    question: "按依赖关系排列处理步骤", orderItems: ["修改交付日期", "请法务确认条款", "等待法务回复", "发送最终版本"], orderAnswer: [0,1,2,3],
+  },
+  {
+    id: "speed-update-2", focus: "speed", level: 2, category: "进度同步", stage: "渐进式提速", duration: 28, units: 6, rate: 1.08, responseType: "choice",
+    text: "新版帮助文档已经完成中文校对，英文版还差支付部分。翻译团队明天中午补齐，产品经理下午统一检查链接。如果没有严重错误，周四先发布网页版，应用内入口等下周版本更新时再开放。",
+    info: [{ type: "result", text: "中文校对完成" }, { type: "result", text: "英文支付部分未完成" }, { type: "time", text: "明天中午补齐翻译" }, { type: "action", text: "产品经理检查链接" }, { type: "time", text: "周四先发布网页版" }, { type: "condition", text: "应用内入口下周再开放" }],
+    question: "哪项发布安排正确？", options: ["周四先发布网页版，应用内入口下周开放", "所有版本都推迟到下周", "明天中午直接开放应用内入口", "只发布英文版并取消中文校对"], correct: 0,
+  },
+  {
+    id: "response-risk-2", focus: "response", level: 2, category: "问题解释", stage: "理解与应答", duration: 25, units: 6, rate: 0.98, responseType: "voice",
+    text: "测试环境的短信验证码今天偶尔延迟，不影响正式用户。技术团队已经联系服务商，预计下午五点前恢复。你先暂停内部批量测试，但单个账号可以继续；如果五点后仍未恢复，再通知项目负责人调整明天的验收时间。",
+    info: [{ type: "result", text: "测试短信偶尔延迟" }, { type: "condition", text: "不影响正式用户" }, { type: "time", text: "预计下午五点前恢复" }, { type: "action", text: "暂停内部批量测试" }, { type: "condition", text: "单个账号可以继续" }, { type: "condition", text: "五点后未恢复再调整验收" }],
+    question: "向负责人确认影响范围、当前措施和升级条件。", responseTemplate: "目前影响……，我会先……；如果……，再……。",
+  },
+  {
+    id: "response-change-3", focus: "response", level: 3, category: "会议讨论", stage: "理解与应答", duration: 35, units: 7, rate: 1.02, responseType: "voice",
+    text: "客户希望把培训从两小时缩短到九十分钟，但要求保留现场练习。我们不删练习，把开场介绍压缩十分钟，产品演示减少二十分钟，问答环节维持半小时。课程负责人今天修改流程，讲师明早确认；如果客户再增加内容，只能替换现有案例，不能延长结束时间。",
+    info: [{ type: "result", text: "培训缩短到九十分钟" }, { type: "condition", text: "保留现场练习" }, { type: "action", text: "开场压缩十分钟" }, { type: "action", text: "演示减少二十分钟" }, { type: "condition", text: "问答保持半小时" }, { type: "time", text: "今天改流程，明早确认" }, { type: "condition", text: "新增内容只能替换案例" }],
+    question: "向客户复述新的时长分配和后续变更边界。", responseTemplate: "新的总时长是……，我们保留……，通过……压缩；后续新增内容只能……。",
   },
 ];
 
@@ -110,12 +135,13 @@ const defaultProfile = {
   createdAt: new Date().toISOString(),
 };
 
-const defaultSettings = { weeklyGoal: 3, baseRate: 0.92, reminders: false };
+const defaultSettings = { weeklyGoal: 3, baseRate: 0.92, reminders: false, reminderTime: "20:00" };
 
 let db;
 let profile = { ...defaultProfile, difficulty: { ...defaultProfile.difficulty } };
 let settings = { ...defaultSettings };
 let attempts = [];
+let storageMode = "indexeddb";
 let session = null;
 let currentRecording = null;
 let recordingStream = null;
@@ -150,18 +176,27 @@ async function initialize() {
     settings = { ...defaultSettings, ...((await getMeta(SETTINGS_KEY)) || {}) };
     attempts = await getAllAttempts();
   } catch (error) {
-    console.warn("IndexedDB unavailable; current session will remain usable.", error);
-    showToast("本地数据库暂不可用，本次记录可能无法保存");
+    console.warn("IndexedDB unavailable; using localStorage fallback.", error);
+    storageMode = "localstorage";
+    const fallback = loadFallbackState();
+    profile = mergeProfile(fallback.profile || defaultProfile);
+    settings = { ...defaultSettings, ...(fallback.settings || {}) };
+    attempts = Array.isArray(fallback.attempts) ? fallback.attempts : [];
+    showToast("已启用兼容存储，训练记录仍会保存在本机");
   }
   syncSettingsForm();
+  updateStorageStatus();
   renderDashboard();
   registerServiceWorker();
   document.documentElement.dataset.appReady = "true";
   const params = new URLSearchParams(location.search);
   const requestedMode = params.get("mode");
-  const requestedView = params.get("view");
-  if (["baseline", "quick", "system"].includes(requestedMode)) {
-    startSession(profile.baselineComplete ? requestedMode : "baseline");
+  const requestedFocus = params.get("focus");
+  const requestedView = params.get("view") || location.hash.replace(/^#/, "");
+  if (["chunk", "speed", "response"].includes(requestedFocus)) {
+    startSession("focus", requestedFocus);
+  } else if (["baseline", "quick", "system"].includes(requestedMode)) {
+    startSession(requestedMode);
   } else if (["home", "report", "settings"].includes(requestedView)) {
     switchView(requestedView);
   }
@@ -177,22 +212,33 @@ function validateScenarioCatalog() {
     if (scenario.responseType === 'choice' && (!Array.isArray(scenario.options) || !scenario.options[scenario.correct])) throw new Error(`Invalid choice answer: ${scenario.id}`);
     if (scenario.responseType === 'order' && (!Array.isArray(scenario.orderItems) || scenario.orderItems.length !== scenario.orderAnswer.length)) throw new Error(`Invalid order answer: ${scenario.id}`);
   });
+  ["chunk", "speed", "response"].forEach((focus) => {
+    if (SCENARIOS.filter((scenario) => scenario.focus === focus).length < 4) throw new Error(`Insufficient focus scenarios: ${focus}`);
+  });
 }
 
 function bindNavigation() {
-  document.querySelectorAll("[data-view-target]").forEach((button) => {
-    button.addEventListener("click", () => switchView(button.dataset.viewTarget));
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest?.("[data-view-target]");
+    if (!trigger) return;
+    event.preventDefault();
+    switchView(trigger.dataset.viewTarget, true);
+  });
+  window.addEventListener("hashchange", () => {
+    const view = location.hash.replace(/^#/, "");
+    if (["home", "report", "settings"].includes(view)) switchView(view);
   });
 }
 
 function bindActions() {
-  $("primaryStartButton").dataset.bound = "true";
   $("primaryStartButton").addEventListener("click", () => {
-    $("primaryStartButton").dataset.clicked = "true";
     startSession(profile.baselineComplete ? "system" : "baseline");
   });
-  $("quickStartButton").addEventListener("click", () => startSession(profile.baselineComplete ? "quick" : "baseline"));
-  $("systemStartButton").addEventListener("click", () => startSession(profile.baselineComplete ? "system" : "baseline"));
+  $("quickStartButton").addEventListener("click", () => startSession("quick"));
+  $("systemStartButton").addEventListener("click", () => startSession("system"));
+  document.querySelectorAll("[data-focus]").forEach((button) => {
+    button.addEventListener("click", () => startSession("focus", button.dataset.focus));
+  });
   $("exitTrainingButton").addEventListener("click", exitTraining);
   $("playButton").addEventListener("click", playCurrentScenario);
   $("skipAudioButton").addEventListener("click", finishAudio);
@@ -201,10 +247,11 @@ function bindActions() {
   $("nextExerciseButton").addEventListener("click", advanceSession);
   $("helpButton").addEventListener("click", () => $("helpDialog").showModal());
   $("closeHelpButton").addEventListener("click", () => $("helpDialog").close());
-  $("helpStartButton").addEventListener("click", () => { $("helpDialog").close(); startSession(profile.baselineComplete ? "quick" : "baseline"); });
+  $("helpStartButton").addEventListener("click", () => { $("helpDialog").close(); startSession("quick"); });
   $("weeklyGoalInput").addEventListener("change", saveSettings);
   $("baseRateInput").addEventListener("change", saveSettings);
   $("reminderInput").addEventListener("change", saveSettings);
+  $("reminderTimeInput").addEventListener("change", saveSettings);
   $("exportButton").addEventListener("click", exportData);
   $("resetButton").addEventListener("click", resetNewData);
 }
@@ -213,29 +260,57 @@ function mergeProfile(value) {
   return { ...defaultProfile, ...value, difficulty: { ...defaultProfile.difficulty, ...(value?.difficulty || {}) } };
 }
 
-function switchView(name) {
+function switchView(name, updateHash = false) {
+  if (!["home", "training", "report", "settings"].includes(name)) return;
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
-  document.querySelectorAll(".bottom-nav button").forEach((button) => button.classList.toggle("active", button.dataset.viewTarget === name));
+  document.querySelectorAll(".bottom-nav [data-view-target]").forEach((item) => item.classList.toggle("active", item.dataset.viewTarget === name));
   document.querySelector(".bottom-nav").classList.toggle("hidden", name === "training");
   if (name === "report") renderReport();
+  if (name === "settings") updateStorageStatus();
+  if (updateHash && name !== "training" && location.hash !== `#${name}`) updateViewAddress(name);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function startSession(mode) {
+function startSession(mode, focus = null) {
   stopSpeech();
   cleanupRecording();
-  const queue = mode === "baseline" ? SCENARIOS.filter((item) => item.baseline) : selectTrainingScenarios(mode === "quick" ? 3 : 7);
-  session = { id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, mode, queue, index: 0, results: [], replayCount: 0, audioFinishedAt: null, firstActionAt: null, selected: null, order: [], checkedUnits: [], voiceSelfChecking: false };
+  let queue;
+  if (mode === "baseline") queue = SCENARIOS.filter((item) => item.baseline);
+  else if (mode === "focus") queue = selectFocusedScenarios(focus);
+  else queue = selectTrainingScenarios(mode === "quick" ? 3 : 7);
+  if (!queue.length) {
+    showToast("当前训练暂时没有可用题目");
+    return;
+  }
+  session = { id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, mode, focus, queue, index: 0, results: [], replayCount: 0, audioFinishedAt: null, firstActionAt: null, selected: null, order: [], checkedUnits: [], voiceSelfChecking: false };
   switchView("training");
   renderExercise();
 }
 
+function selectFocusedScenarios(focus) {
+  const pool = SCENARIOS.filter((item) => !item.baseline && item.focus === focus);
+  return shuffle(pool).slice(0, 4);
+}
+
 function selectTrainingScenarios(count) {
   const target = profile.difficulty.level;
+  const targetUnits = profile.difficulty.infoUnits;
   const recentIds = attempts.slice(-5).map((item) => item.scenarioId);
   let pool = SCENARIOS.filter((item) => !item.baseline && Math.abs(item.level - target) <= 1 && !recentIds.includes(item.id));
   if (pool.length < count) pool = SCENARIOS.filter((item) => !item.baseline);
-  return shuffle(pool).slice(0, count);
+  return shuffle(pool)
+    .map((item) => ({ item, distance: Math.abs(item.level - target) * 2 + Math.abs(item.units - targetUnits) }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, count)
+    .map(({ item }) => item);
+}
+
+function updateViewAddress(name) {
+  try {
+    history.replaceState(null, "", `#${name}`);
+  } catch (error) {
+    console.warn("Could not update view address.", error);
+  }
 }
 
 function renderExercise() {
@@ -249,7 +324,8 @@ function renderExercise() {
   session.checkedUnits = [];
   session.voiceSelfChecking = false;
   setStage("exerciseReady");
-  $("sessionLabel").textContent = session.mode === "baseline" ? "基线测试" : session.mode === "quick" ? "碎片训练" : "系统训练";
+  const focusLabels = { chunk: "边听边压缩", speed: "渐进式提速", response: "理解与应答" };
+  $("sessionLabel").textContent = session.mode === "baseline" ? "基线测试" : session.mode === "quick" ? "碎片训练" : session.mode === "focus" ? focusLabels[session.focus] : "系统训练";
   $("sessionCount").textContent = `${session.index + 1} / ${session.queue.length}`;
   $("sessionProgress").style.width = `${((session.index + 1) / session.queue.length) * 100}%`;
   $("scenarioCategory").textContent = scenario.category;
@@ -276,7 +352,8 @@ function currentScenario() { return session?.queue[session.index]; }
 function effectiveRate(scenario) {
   const adaptiveOffset = profile.baselineComplete ? profile.difficulty.rate - 0.92 : 0;
   const preferenceOffset = settings.baseRate - 0.92;
-  return Math.max(0.8, Math.min(1.25, (scenario.rate || 0.92) + preferenceOffset + adaptiveOffset));
+  const focusOffset = session?.focus === "speed" ? 0.08 : 0;
+  return Math.max(0.8, Math.min(1.25, (scenario.rate || 0.92) + preferenceOffset + adaptiveOffset + focusOffset));
 }
 
 function playCurrentScenario() {
@@ -490,6 +567,7 @@ async function finalizeAttempt(scores) {
     sessionId: session.id,
     category: scenario.category,
     mode: session.mode,
+    focus: session.focus || null,
     completedAt: new Date().toISOString(),
     duration: scenario.duration,
     units: scenario.units,
@@ -504,7 +582,7 @@ async function finalizeAttempt(scores) {
   };
   session.results.push(attempt);
   attempts.push(attempt);
-  if (db) await putAttempt(attempt);
+  if (db) await putAttempt(attempt); else persistFallbackState();
   renderFeedback(attempt, scores.captured);
 }
 
@@ -541,7 +619,7 @@ async function completeSession() {
     adaptDifficulty();
     showToast(`训练完成：本次细节召回 ${Math.round(average * 100)}%`);
   }
-  if (db) await setMeta(PROFILE_KEY, profile);
+  await persistProfile();
   session = null;
   renderDashboard();
   renderReport();
@@ -584,10 +662,17 @@ function renderDashboard() {
 function renderReport() {
   const week = attemptsThisWeek();
   const recall = week.length ? week.reduce((sum, item) => sum + item.detailScore, 0) / week.length : null;
+  const intent = week.length ? week.reduce((sum, item) => sum + item.intentScore, 0) / week.length : null;
+  const onePass = week.length ? week.filter((item) => item.replayCount === 0).length / week.length : null;
+  const latencies = week.map((item) => item.responseLatency).filter((value) => Number.isFinite(value));
+  const latency = latencies.length ? latencies.reduce((sum, value) => sum + value, 0) / latencies.length : null;
   $("reportDuration").textContent = profile.stableDuration ? `${profile.stableDuration} 秒` : "待完成基线";
   $("reportDifficulty").textContent = profile.baselineComplete ? `难度 ${profile.difficulty.level} · ${profile.difficulty.infoUnits} 个信息点 · ${profile.difficulty.rate.toFixed(2)}×` : "起始难度尚未确定";
   $("reportRecall").textContent = recall === null ? "—" : `${Math.round(recall * 100)}%`;
   $("reportRing").style.setProperty("--score", `${recall === null ? 0 : recall * 100}%`);
+  $("reportIntent").textContent = intent === null ? "—" : `${Math.round(intent * 100)}%`;
+  $("reportOnePass").textContent = onePass === null ? "—" : `${Math.round(onePass * 100)}%`;
+  $("reportLatency").textContent = latency === null ? "—" : `${(latency / 1000).toFixed(1)} 秒`;
   renderWeakTypes(week);
   renderHistory();
   renderRecommendation(week, recall);
@@ -631,20 +716,39 @@ function syncSettingsForm() {
   $("weeklyGoalInput").value = String(settings.weeklyGoal);
   $("baseRateInput").value = String(settings.baseRate);
   $("reminderInput").checked = Boolean(settings.reminders);
+  $("reminderTimeInput").value = settings.reminderTime || "20:00";
 }
 
 async function saveSettings() {
   settings.weeklyGoal = Number($("weeklyGoalInput").value);
   settings.baseRate = Number($("baseRateInput").value);
   settings.reminders = $("reminderInput").checked;
-  if (db) await setMeta(SETTINGS_KEY, settings);
+  settings.reminderTime = $("reminderTimeInput").value || "20:00";
+  await persistSettings();
+  if (window.webkit?.messageHandlers?.scheduleReminder) {
+    window.webkit.messageHandlers.scheduleReminder.postMessage({
+      enabled: settings.reminders,
+      weeklyGoal: settings.weeklyGoal,
+      time: settings.reminderTime,
+    });
+  } else if (settings.reminders) {
+    showToast("提醒偏好已保存；安装版会按此时间发送通知");
+    renderDashboard();
+    return;
+  }
   renderDashboard();
   showToast("设置已保存在本机");
 }
 
 function exportData() {
   const payload = { app: "聆听训练", version: 1, exportedAt: new Date().toISOString(), profile, settings, attempts };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const json = JSON.stringify(payload, null, 2);
+  if (window.webkit?.messageHandlers?.shareBackup) {
+    window.webkit.messageHandlers.shareBackup.postMessage(json);
+    showToast("正在打开 iPhone 分享面板");
+    return;
+  }
+  const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -658,9 +762,12 @@ async function resetNewData() {
   if (db) {
     await transactionPromise("attempts", "readwrite", (store) => store.clear());
     await setMeta(PROFILE_KEY, defaultProfile);
+  } else {
+    localStorage.removeItem(FALLBACK_KEY);
   }
   attempts = [];
   profile = mergeProfile(defaultProfile);
+  persistFallbackState();
   renderDashboard();
   renderReport();
   showToast("新版训练数据已重置");
@@ -710,6 +817,41 @@ function clampScore(value) { return Math.max(0, Math.min(1, Number(value) || 0))
 function startOfWeek(date) { const result = new Date(date); const day = (result.getDay() + 6) % 7; result.setHours(0,0,0,0); result.setDate(result.getDate() - day); return result; }
 function formatDate(value) { return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]); }
+
+function loadFallbackState() {
+  try {
+    return JSON.parse(localStorage.getItem(FALLBACK_KEY) || "{}");
+  } catch (error) {
+    console.warn("Could not read compatibility storage.", error);
+    return {};
+  }
+}
+
+function persistFallbackState() {
+  if (storageMode !== "localstorage") return;
+  try {
+    localStorage.setItem(FALLBACK_KEY, JSON.stringify({ profile, settings, attempts }));
+  } catch (error) {
+    console.error("Could not save compatibility storage.", error);
+    showToast("本机存储空间不足，请先导出训练记录");
+  }
+}
+
+async function persistProfile() {
+  if (db) await setMeta(PROFILE_KEY, profile); else persistFallbackState();
+}
+
+async function persistSettings() {
+  if (db) await setMeta(SETTINGS_KEY, settings); else persistFallbackState();
+}
+
+function updateStorageStatus() {
+  const element = $("storageStatus");
+  if (!element) return;
+  element.textContent = storageMode === "indexeddb"
+    ? "训练记录保存在 iPhone 本地数据库；录音不会持久保存或上传。"
+    : "当前使用兼容存储保存训练记录；建议定期导出备份。";
+}
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -773,3 +915,14 @@ function registerServiceWorker() {
     navigator.serviceWorker.register("./sw.js").catch((error) => console.warn("Service worker registration failed", error));
   }
 }
+
+window.handleReminderStatus = (status) => {
+  if (status === "scheduled") showToast("训练提醒已安排");
+  if (status === "disabled") showToast("训练提醒已关闭");
+  if (status === "denied") {
+    settings.reminders = false;
+    $("reminderInput").checked = false;
+    persistSettings();
+    showToast("未获得通知权限，可在 iPhone 设置中开启");
+  }
+};
