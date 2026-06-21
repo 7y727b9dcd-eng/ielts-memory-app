@@ -23,8 +23,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.personal.listeningtraining
         PRODUCT_NAME: ListeningTraining
         MARKETING_VERSION: 1.1.0
-        CURRENT_PROJECT_VERSION: 9
-        TARGETED_DEVICE_FAMILY: "1,2"
+        CURRENT_PROJECT_VERSION: 10
+        TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "聆听训练"
