@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=2" />
   </head>
   <body>
     <div class="app-shell">
@@ -109,6 +109,6 @@
     <dialog id="importDialog"><form class="dialog-form" id="importForm"><div class="dialog-heading"><h2>批量导入</h2><button type="button" class="close-button" data-close="importDialog" aria-label="关闭">×</button></div><p class="muted">每行格式：单词 | 中文释义 | 英文例句 | 标签。也支持 JSON 数组。</p><textarea id="importText" rows="10" placeholder="substantial | 大量的；重要的 | The report shows a substantial increase. | 雅思, 写作"></textarea><div class="dialog-actions"><button type="button" class="secondary-button" data-close="importDialog">取消</button><button class="primary-button" type="submit">导入</button></div></form></dialog>
     <dialog id="sceneDialog"><div class="dialog-form"><div class="dialog-heading"><div><p class="eyebrow">VIDEO CONTEXT</p><h2 id="sceneWord">影视语境</h2></div><button type="button" class="close-button" data-close="sceneDialog" aria-label="关闭">×</button></div><p class="muted" id="sceneDescription"></p><div id="sceneResults" class="scene-results"></div></div></dialog>
     <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=2"></script>
   </body>
 </html>

@@ -1,9 +1,9 @@
-const CACHE_NAME = "word-tuo-pwa-v2";
+const CACHE_NAME = "word-tuo-pwa-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=2",
+  "./app.js?v=2",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",
