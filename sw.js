@@ -1,10 +1,10 @@
-const CACHE_NAME = "listening-training-pwa-v10";
+const CACHE_NAME = "listening-training-pwa-v12";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./index.html?v=10",
-  "./styles.css?v=10",
-  "./app.js?v=10",
+  "./index.html?v=12",
+  "./styles.css?v=12",
+  "./app.js?v=12",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",
