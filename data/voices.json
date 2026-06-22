@@ -3,24 +3,24 @@
   "speakers": [
     {
       "id": "lin_xiao",
-      "name": "鏋楁檽",
-      "genderLabel": "濂冲０",
+      "name": "\u6797\u6653",
+      "genderLabel": "\u5973\u58f0",
       "azureVoice": "zh-CN-XiaoxiaoNeural",
       "style": "chat",
       "styleDegree": 0.55
     },
     {
       "id": "chen_yu",
-      "name": "闄堝笨",
-      "genderLabel": "鐢峰０",
+      "name": "\u9648\u5c7f",
+      "genderLabel": "\u7537\u58f0",
       "azureVoice": "zh-CN-YunxiNeural",
       "style": "chat",
       "styleDegree": 0.45
     },
     {
       "id": "su_ning",
-      "name": "鑻忓畞",
-      "genderLabel": "濂冲０",
+      "name": "\u82cf\u5b81",
+      "genderLabel": "\u5973\u58f0",
       "azureVoice": "zh-CN-XiaoyiNeural",
       "style": null,
       "styleDegree": null
