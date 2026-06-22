@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "speakers": [
+    {
+      "id": "lin_xiao",
+      "name": "鏋楁檽",
+      "genderLabel": "濂冲０",
+      "azureVoice": "zh-CN-XiaoxiaoNeural",
+      "style": "chat",
+      "styleDegree": 0.55
+    },
+    {
+      "id": "chen_yu",
+      "name": "闄堝笨",
+      "genderLabel": "鐢峰０",
+      "azureVoice": "zh-CN-YunxiNeural",
+      "style": "chat",
+      "styleDegree": 0.45
+    },
+    {
+      "id": "su_ning",
+      "name": "鑻忓畞",
+      "genderLabel": "濂冲０",
+      "azureVoice": "zh-CN-XiaoyiNeural",
+      "style": null,
+      "styleDegree": null
+    }
+  ]
+}
