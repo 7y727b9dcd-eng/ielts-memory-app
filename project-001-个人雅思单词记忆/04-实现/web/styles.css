@@ -80,6 +80,15 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .learning-answer { padding: 18px; border-radius: 7px; background: var(--soft); }
 .learning-answer p { margin-bottom: 8px; line-height: 1.6; }
 .learning-answer blockquote { margin: 0; color: var(--muted); line-height: 1.6; }
+.memory-methods { display: grid; gap: 10px; }
+.method-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.method-heading .eyebrow { margin: 0; }
+.memory-method-grid { display: grid; gap: 7px; }
+.memory-method { border: 1px solid var(--line); border-radius: 7px; background: white; }
+.memory-method summary { display: flex; align-items: center; gap: 9px; padding: 12px; cursor: pointer; font-weight: 780; list-style: none; }
+.memory-method summary::-webkit-details-marker { display: none; }
+.memory-method summary span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 5px; background: var(--green-soft); color: var(--green-dark); font-size: 11px; }
+.memory-method p { margin: 0; padding: 0 13px 13px 46px; color: var(--muted); line-height: 1.65; }
 .session-tools { align-self: end; }
 .session-tools > button { flex: 1; }
 .rating-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -123,11 +132,22 @@ dialog { width: min(620px, calc(100vw - 22px)); max-height: calc(100vh - 24px); 
 dialog::backdrop { background: rgba(21,32,25,.42); }
 .close-button { width: 40px; min-height: 40px; padding: 0; background: var(--soft); font-size: 20px; }
 .dialog-actions { justify-content: flex-end; }
+.memory-editor, .clip-editor { border: 1px solid var(--line); border-radius: 7px; padding: 13px; background: var(--soft); }
+.memory-editor summary, .clip-editor summary { cursor: pointer; color: var(--green-dark); font-weight: 800; }
+.memory-editor[open], .clip-editor[open] { display: grid; gap: 13px; }
 .scene-results { display: grid; gap: 10px; }
 .scene-card { display: grid; gap: 9px; border: 1px solid var(--line); border-radius: 7px; padding: 14px; }
 .scene-card p { margin: 0; color: var(--muted); line-height: 1.55; }
 .scene-card a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 7px; background: var(--green); color: white; text-decoration: none; font-weight: 750; }
 .scene-notice { padding: 14px; border-radius: 7px; background: #f7ecd5; color: #6f4a14; line-height: 1.6; }
+.saved-clip { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: white; }
+.clip-screen { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 9; background: #101713; color: white; }
+.clip-screen iframe, .clip-screen video { width: 100%; height: 100%; border: 0; object-fit: contain; }
+.clip-screen span { position: absolute; right: 9px; bottom: 8px; border-radius: 4px; padding: 4px 7px; background: rgba(0,0,0,.66); font-size: 10px; }
+.clip-play { width: 58px; height: 58px; min-height: 58px; border-radius: 50%; padding: 0 0 0 4px; background: white; color: var(--green-dark); font-size: 23px; }
+.clip-copy { padding: 13px; }
+.clip-copy h3 { margin-bottom: 6px; }
+.clip-copy p { margin-bottom: 5px; color: var(--muted); line-height: 1.55; }
 .bottom-nav { position: fixed; left: 12px; right: 12px; bottom: max(9px, env(safe-area-inset-bottom)); z-index: 10; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; max-width: 700px; margin: auto; border: 1px solid var(--line); border-radius: 8px; padding: 7px; background: rgba(255,255,255,.95); box-shadow: 0 12px 32px rgba(21,32,25,.16); backdrop-filter: blur(15px); }
 .nav-item { display: grid; place-items: center; gap: 2px; min-height: 52px; padding: 6px; background: transparent; color: var(--muted); font-size: 11px; }
 .nav-item span { font-size: 18px; line-height: 1; }

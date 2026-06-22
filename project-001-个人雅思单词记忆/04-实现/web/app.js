@@ -1,8 +1,8 @@
 "use strict";
 
-const STORAGE_KEY = "word-tuo-state-v2";
-const LEGACY_STORAGE_KEY = "word-tuo-state-v1";
-const BACKUP_VERSION = 2;
+const STORAGE_KEY = "word-tuo-state-v3";
+const LEGACY_STORAGE_KEYS = ["word-tuo-state-v2", "word-tuo-state-v1"];
+const BACKUP_VERSION = 3;
 const EXAM_INTERVAL_DAYS = 21;
 const MAX_HISTORY = 800;
 
@@ -21,6 +21,21 @@ const SAMPLE_WORDS = [
   { text: "compelling", meaning: "令人信服的；引人入胜的", phonetic: "/kəmˈpelɪŋ/", example: "The researcher presented compelling evidence for the policy change.", tags: ["雅思", "写作"] }
 ];
 
+const SAMPLE_MNEMONICS = {
+  substantial: { roots: "sub-（在下）+ stance（站立、实体）+ -ial（形容词）→ 有实体分量的", association: "有 substance（实质）的内容，分量就很 substantial。", family: "substance 实质；substantially 大幅地；substantiate 证实", syllables: "sub · stan · tial" },
+  coherent: { roots: "co-（共同）+ her/haer（黏着）+ -ent（形容词）→ 各部分黏在一起", association: "观点像胶水一样黏合，文章就连贯。", family: "cohere 连贯；coherence 连贯性；incoherent 不连贯的", syllables: "co · her · ent" },
+  interpret: { roots: "inter-（在……之间）+ pret（解释、说明）→ 在信息之间作解释", association: "在数据和读者之间搭桥，就是 interpret。", family: "interpretation 解释；interpreter 口译员；misinterpret 误解", syllables: "in · ter · pret" },
+  approximately: { roots: "ap-/ad-（趋向）+ proxim（接近）+ -ly（副词）→ 接近地", association: "proximity 是接近，approximately 就是大约接近。", family: "approximate 大约的；approximation 近似值；proximity 接近", syllables: "ap · prox · i · mate · ly" },
+  inevitable: { roots: "in-（不）+ evit（避免）+ -able（能够）→ 不能避免的", association: "in + evitable：无法逃避，所以不可避免。", family: "inevitably 不可避免地；evitable 可避免的", syllables: "in · ev · it · a · ble" },
+  allocate: { roots: "al-/ad-（到）+ loc（地点）+ -ate（动词）→ 把资源放到指定位置", association: "location 是位置，把钱放到某个位置就是 allocate。", family: "allocation 分配；locate 定位；location 位置", syllables: "al · lo · cate" },
+  deteriorate: { roots: "deterior（更坏）+ -ate（变成）→ 变得更坏", association: "情况一路变得 worse，就是 deteriorate。", family: "deterioration 恶化；deteriorated 已恶化的", syllables: "de · te · ri · o · rate" },
+  viable: { roots: "vi/viv（生命）+ -able（能够）→ 能存活、能实行的", association: "能活下来的方案，才是 viable solution。", family: "viability 可行性；vital 有生命力的；survive 生存", syllables: "vi · a · ble" },
+  conventional: { roots: "con-（共同）+ ven（来）+ -tion + -al → 大家共同形成的惯例", association: "大家都按 convention 做，就是传统常规的。", family: "convention 惯例；conventionality 传统性；unconventional 非传统的", syllables: "con · ven · tion · al" },
+  facilitate: { roots: "facil（容易）+ -itate（使成为）→ 使事情更容易", association: "facility 带来便利，facilitate 就是促进、便利化。", family: "facility 设施；facilitation 促进；facilitator 促进者", syllables: "fa · cil · i · tate" },
+  prevalent: { roots: "pre-（在前）+ val（强、有效）+ -ent → 占优势而广泛存在", association: "到处都能看到、占主流，就是 prevalent。", family: "prevail 盛行；prevalence 流行程度；prevailing 盛行的", syllables: "prev · a · lent" },
+  compelling: { roots: "com-（共同、加强）+ pel（驱动）+ -ing → 强力推动注意力", association: "像一股力量把你推向结论，所以令人信服。", family: "compel 迫使；compulsion 强迫；compellingly 有说服力地", syllables: "com · pel · ling" }
+};
+
 const pageTitles = { home: "今天", learn: "学习", library: "雅思词库", stats: "统计", settings: "设置" };
 const rawState = loadRawState();
 const state = normalizeState(rawState);
@@ -34,8 +49,9 @@ const elementIds = [
   "searchInput", "filterSelect", "libraryList", "levelBars", "masteryRate", "historyList", "examHistoryList",
   "dailyNewGoalInput", "dailyGoalInput", "autoSpeakInput", "videoEnabledInput", "nextExamSetting",
   "restoreFileInput", "wordDialog", "wordForm", "wordDialogTitle", "wordId", "wordText", "wordMeaning",
-  "wordPhonetic", "wordTags", "wordExample", "importDialog", "importForm", "importText", "sceneDialog",
-  "sceneWord", "sceneDescription", "sceneResults", "toast"
+  "wordPhonetic", "wordTags", "wordExample", "mnemonicRoots", "mnemonicAssociation", "mnemonicFamily", "mnemonicSyllables",
+  "importDialog", "importForm", "importText", "memoryDialog", "memoryWord", "memoryContent", "sceneDialog", "sceneWord", "sceneDescription", "sceneWordId",
+  "sceneSavedClips", "sceneClipForm", "clipUrl", "clipStart", "clipEnd", "clipTitle", "clipCaption", "sceneResults", "toast"
 ];
 const el = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
 
@@ -62,6 +78,7 @@ function bindEvents() {
   el.filterSelect.addEventListener("change", renderLibrary);
   el.wordForm.addEventListener("submit", saveWordForm);
   el.importForm.addEventListener("submit", importWords);
+  el.sceneClipForm.addEventListener("submit", saveSceneClip);
   document.getElementById("settingsForm").addEventListener("submit", saveSettings);
   el.restoreFileInput.addEventListener("change", restoreBackup);
 }
@@ -70,8 +87,10 @@ function loadRawState() {
   try {
     const current = localStorage.getItem(STORAGE_KEY);
     if (current) return JSON.parse(current);
-    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (legacy) return { ...JSON.parse(legacy), migratedFrom: 1 };
+    for (const key of LEGACY_STORAGE_KEYS) {
+      const legacy = localStorage.getItem(key);
+      if (legacy) return { ...JSON.parse(legacy), migratedFrom: key.endsWith("v2") ? 2 : 1 };
+    }
   } catch { /* use defaults */ }
   return null;
 }
@@ -80,8 +99,8 @@ function createDefaultState() {
   const started = todayKey();
   return {
     version: BACKUP_VERSION,
-    words: SAMPLE_WORDS.map((word) => createWord(word)),
-    history: [], exams: [], currentExam: null, lastExamResult: null, learningSession: null,
+    words: SAMPLE_WORDS.map((word) => createWord({ ...word, mnemonics: SAMPLE_MNEMONICS[word.text] })),
+    clips: {}, history: [], exams: [], currentExam: null, lastExamResult: null, learningSession: null,
     examSchedule: { cycleStartedAt: started, nextExamAt: addDays(started, EXAM_INTERVAL_DAYS) },
     settings: { dailyNewGoal: 10, dailyGoal: 30, autoSpeak: true, videoEnabled: true }
   };
@@ -94,6 +113,7 @@ function normalizeState(input) {
   const output = {
     version: BACKUP_VERSION,
     words: Array.isArray(input.words) ? input.words.map(normalizeWord).filter(Boolean) : fallback.words,
+    clips: normalizeClips(input.clips),
     history: Array.isArray(input.history) ? input.history.map(normalizeRecord).filter(Boolean) : [],
     exams: Array.isArray(input.exams) ? input.exams.map(normalizeExamRecord).filter(Boolean) : [],
     currentExam: normalizeCurrentExam(input.currentExam),
@@ -117,7 +137,7 @@ function normalizeState(input) {
 function createWord(data) {
   return normalizeWord({
     id: makeId("word"), text: data.text, meaning: data.meaning, phonetic: data.phonetic || "",
-    example: data.example || "", tags: data.tags || ["雅思"], status: data.status || "new",
+    example: data.example || "", tags: data.tags || ["雅思"], mnemonics: normalizeMnemonics(data.mnemonics, data.text), status: data.status || "new",
     repetitions: 0, easeFactor: 2.5, intervalDays: 0, lapseCount: 0, correct: 0, wrong: 0,
     createdAt: new Date().toISOString(), learnedAt: null, lastReviewed: null, nextReview: todayKey()
   });
@@ -131,13 +151,52 @@ function normalizeWord(word) {
     ? word.status : (word.lastReviewed ? (Number(word.level) >= 5 ? "mastered" : "review") : "new");
   return {
     id: word.id || makeId("word"), text: String(word.text).trim(), meaning: String(word.meaning).trim(),
-    phonetic: String(word.phonetic || "").trim(), example: String(word.example || "").trim(), tags: splitTags(word.tags || "雅思"),
+    phonetic: String(word.phonetic || "").trim(), example: String(word.example || "").trim(), tags: splitTags(word.tags || "雅思"), mnemonics: normalizeMnemonics(word.mnemonics, word.text),
     status, repetitions, easeFactor: clamp(Number(word.easeFactor) || 2.5, 1.3, 3.0),
     intervalDays: Number.isFinite(storedInterval) ? Math.max(0, storedInterval) : legacyInterval(word.level), lapseCount: Math.max(0, Number(word.lapseCount) || 0),
     level: clamp(Number(word.level) || repetitions + 1, 1, 6), correct: Math.max(0, Number(word.correct) || 0), wrong: Math.max(0, Number(word.wrong) || 0),
     createdAt: word.createdAt || new Date().toISOString(), learnedAt: word.learnedAt || (word.lastReviewed ? word.lastReviewed : null),
     lastReviewed: word.lastReviewed || null, nextReview: word.nextReview || todayKey()
   };
+}
+
+function normalizeMnemonics(input, text) {
+  const curated = SAMPLE_MNEMONICS[String(text || "").toLowerCase()];
+  const source = input || curated || {};
+  return {
+    roots: String(source.roots || analyzeWordParts(text)).trim(),
+    association: String(source.association || `把 ${text || "这个单词"} 的发音、词形和中文释义组合成一个夸张画面。`).trim(),
+    family: String(source.family || "阅读时继续收集同词根、同前后缀的词，形成词族。" ).trim(),
+    syllables: String(source.syllables || splitForSpelling(text)).trim()
+  };
+}
+
+function normalizeClips(input) {
+  if (!input || typeof input !== "object") return {};
+  return Object.fromEntries(Object.entries(input).map(([wordId, clips]) => [wordId, Array.isArray(clips) ? clips.map(normalizeClip).filter(Boolean).slice(0, 3) : []]));
+}
+
+function normalizeClip(clip) {
+  if (!clip?.url) return null;
+  const start = Math.max(0, Number(clip.start) || 0);
+  const end = Math.max(start + 5, Number(clip.end) || start + 10);
+  return { id: clip.id || makeId("clip"), url: String(clip.url), type: clip.type || detectClipType(clip.url), videoId: clip.videoId || extractYouTubeId(clip.url), start, end: Math.min(end, start + 20), title: String(clip.title || "影视语境片段"), caption: String(clip.caption || ""), createdAt: clip.createdAt || new Date().toISOString() };
+}
+
+function analyzeWordParts(text) {
+  const word = String(text || "").toLowerCase();
+  const prefixes = { anti: "反对", inter: "在……之间", trans: "跨越", under: "在下、低于", over: "过度、在上", pre: "在前", sub: "在下", con: "共同", com: "共同、加强", re: "再次", dis: "否定、分离", de: "向下、去除", un: "不", in: "不、向内", im: "不、向内" };
+  const suffixes = { ation: "名词后缀", tion: "名词后缀", sion: "名词后缀", ment: "名词后缀", ness: "性质、状态", able: "能够", ible: "能够", ous: "形容词后缀", ive: "具有……性质", al: "形容词后缀", ent: "形容词/名词后缀", ant: "形容词/名词后缀", ate: "动词后缀", ity: "性质、状态", ly: "副词后缀" };
+  const prefix = Object.keys(prefixes).sort((a,b) => b.length - a.length).find((part) => word.startsWith(part) && word.length > part.length + 3);
+  const suffix = Object.keys(suffixes).sort((a,b) => b.length - a.length).find((part) => word.endsWith(part) && word.length > part.length + 3);
+  if (!prefix && !suffix) return "未识别到可靠的常见词缀；建议结合词源词典后在词库中补充。";
+  const core = word.slice(prefix?.length || 0, suffix ? -suffix.length : undefined);
+  return `${prefix ? `${prefix}-（${prefixes[prefix]}）+ ` : ""}${core || word}${suffix ? ` + -${suffix}（${suffixes[suffix]}）` : ""}（自动拆解，建议核对词源）`;
+}
+
+function splitForSpelling(text) {
+  const chunks = String(text || "").toLowerCase().match(/[^aeiouy]*[aeiouy]+(?:[^aeiouy](?![aeiouy])|$)*/g);
+  return chunks?.filter(Boolean).join(" · ") || String(text || "");
 }
 
 function normalizeRecord(record) {
@@ -266,10 +325,22 @@ function sessionHeader(session, labels) {
 }
 
 function renderPreviewStage(word, session) {
-  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","cloze"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(word.phonetic)}</p></div><div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句，可在词库中补充。")}</blockquote></div><div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="toRecallButton">我看完了，开始回忆</button></div></article>`;
+  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","cloze"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(word.phonetic)}</p></div><div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句，可在词库中补充。")}</blockquote></div>${renderMemoryMethods(word)}<div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="toRecallButton">我看完了，开始回忆</button></div></article>`;
   document.getElementById("sessionSpeakButton").addEventListener("click", () => speak(word.text));
   document.getElementById("toRecallButton").addEventListener("click", () => { session.stage = "recall"; session.answerRevealed = false; saveState(); renderLearnArea(); });
   if (state.settings.autoSpeak) setTimeout(() => speak(word.text), 120);
+}
+
+function renderMemoryMethods(word) {
+  const memory = word.mnemonics;
+  const methods = [
+    ["词根词缀", memory.roots],
+    ["联想钩子", memory.association],
+    ["词族联结", memory.family],
+    ["音节拼写", memory.syllables],
+    ["语境记忆", word.example || `用 ${word.text} 造一个和自己有关的句子。`]
+  ];
+  return `<section class="memory-methods"><div class="method-heading"><p class="eyebrow">MEMORY TOOLS</p><strong>五种记忆法</strong></div><div class="memory-method-grid">${methods.map(([title, content], index) => `<details class="memory-method" ${index === 0 ? "open" : ""}><summary><span>${index + 1}</span>${escapeHtml(title)}</summary><p>${escapeHtml(content)}</p></details>`).join("")}</div></section>`;
 }
 
 function renderRecallStage(word, session, isReview) {
@@ -419,7 +490,7 @@ function renderWordList(container, words, compact) {
   words.forEach((word) => {
     const item = document.createElement("li"); item.className = "word-item";
     const sceneButton = state.settings.videoEnabled ? `<button class="secondary-button" data-action="scene" data-id="${word.id}">影视语境</button>` : "";
-    item.innerHTML = `<div><h3>${escapeHtml(word.text)}</h3><p>${escapeHtml(word.meaning)}</p><div class="word-meta"><span class="pill">${statusLabel(word.status)}</span><span class="pill">${word.status === "new" ? "未安排" : formatDue(word.nextReview)}</span>${word.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div></div>${compact ? "" : `<div class="item-actions"><button class="secondary-button" data-action="speak" data-id="${word.id}">朗读</button>${sceneButton}<button class="secondary-button" data-action="edit" data-id="${word.id}">编辑</button><button class="danger-button" data-action="delete" data-id="${word.id}">删除</button></div>`}`;
+    item.innerHTML = `<div><h3>${escapeHtml(word.text)}</h3><p>${escapeHtml(word.meaning)}</p><div class="word-meta"><span class="pill">${statusLabel(word.status)}</span><span class="pill">${word.status === "new" ? "未安排" : formatDue(word.nextReview)}</span>${word.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div></div>${compact ? "" : `<div class="item-actions"><button class="secondary-button" data-action="speak" data-id="${word.id}">朗读</button><button class="secondary-button" data-action="memory" data-id="${word.id}">记忆法</button>${sceneButton}<button class="secondary-button" data-action="edit" data-id="${word.id}">编辑</button><button class="danger-button" data-action="delete" data-id="${word.id}">删除</button></div>`}`;
     container.append(item);
   });
   container.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => handleWordAction(button.dataset.action, button.dataset.id)));
@@ -429,18 +500,105 @@ function handleWordAction(action, id) {
   const word = state.words.find((item) => item.id === id); if (!word) return;
   if (action === "speak") speak(word.text);
   if (action === "edit") openWordDialog(id);
+  if (action === "memory") openMemoryDialog(word);
   if (action === "scene") openSceneDialog(word);
-  if (action === "delete" && confirm(`删除 ${word.text}？`)) { state.words = state.words.filter((item) => item.id !== id); saveState(); renderAll(); showToast("单词已删除"); }
+  if (action === "delete" && confirm(`删除 ${word.text}？`)) { state.words = state.words.filter((item) => item.id !== id); delete state.clips[id]; saveState(); renderAll(); showToast("单词已删除"); }
+}
+
+function openMemoryDialog(word) {
+  el.memoryWord.textContent = `${word.text} · 五种记忆法`;
+  el.memoryContent.innerHTML = renderMemoryMethods(word);
+  el.memoryDialog.showModal();
 }
 
 async function openSceneDialog(word) {
   el.sceneWord.textContent = `${word.text} · 影视语境`;
-  el.sceneDescription.textContent = "仅加载搜索信息；点击后才会打开外部公开视频，不缓存视频文件。";
+  el.sceneWordId.value = word.id;
+  el.sceneDescription.textContent = "搜索后可保存最多3个公开视频链接；播放器只在点击时加载，片段严格限制为5–20秒。";
   el.sceneResults.innerHTML = `<div class="empty">正在准备语境来源…</div>`;
+  renderSavedClips(word);
   el.sceneDialog.showModal();
   const results = await clipProvider.search(word.text, 3);
   if (!el.sceneDialog.open) return;
-  el.sceneResults.innerHTML = `<div class="scene-notice">PlayPhrase.me 未提供已确认可免费调用的公开接口，因此当前不抓取其片段。以下入口会打开合法的外部搜索；无法定位时间点时按“完整视频语境”处理。</div>${results.map((result) => `<article class="scene-card"><div><p class="eyebrow">${escapeHtml(result.source)}</p><h3>${escapeHtml(result.title)}</h3></div><p>${escapeHtml(result.caption)}</p><a href="${safeUrl(result.url)}" target="_blank" rel="noopener noreferrer">打开${result.precise ? "片段" : "完整搜索"}</a></article>`).join("")}`;
+  el.sceneResults.innerHTML = `<div class="scene-notice">先在以下合法来源搜索，再把 YouTube 或公开 MP4/WebM 链接保存到上方。PlayPhrase.me 没有确认免费公开接口，因此不会自动抓取。</div>${results.map((result) => `<article class="scene-card"><div><p class="eyebrow">${escapeHtml(result.source)}</p><h3>${escapeHtml(result.title)}</h3></div><p>${escapeHtml(result.caption)}</p><a href="${safeUrl(result.url)}" target="_blank" rel="noopener noreferrer">打开搜索</a></article>`).join("")}`;
+}
+
+function saveSceneClip(event) {
+  event.preventDefault();
+  const word = state.words.find((item) => item.id === el.sceneWordId.value);
+  if (!word) return showToast("没有找到对应单词");
+  const url = el.clipUrl.value.trim();
+  const start = Math.max(0, Number(el.clipStart.value) || 0);
+  const end = Number(el.clipEnd.value);
+  const duration = end - start;
+  const type = detectClipType(url);
+  if (!type) return showToast("仅支持 YouTube 或 HTTPS 的 MP4/WebM 链接");
+  if (duration < 5 || duration > 20) return showToast("片段长度必须是5–20秒");
+  const clips = state.clips[word.id] || [];
+  if (clips.length >= 3) return showToast("每个单词最多保存3个片段");
+  clips.push(normalizeClip({ url, type, videoId: extractYouTubeId(url), start, end, title: el.clipTitle.value.trim(), caption: el.clipCaption.value.trim() }));
+  state.clips[word.id] = clips;
+  saveState(); el.sceneClipForm.reset(); el.clipStart.value = 0; el.clipEnd.value = 10; renderSavedClips(word); showToast("片段已保存，点击即可播放");
+}
+
+function renderSavedClips(word) {
+  const clips = state.clips[word.id] || [];
+  if (!clips.length) {
+    el.sceneSavedClips.innerHTML = `<div class="empty"><strong>还没有保存片段</strong><p>打开下方搜索，将公开视频链接和5–20秒时间段保存到这里。</p></div>`;
+    return;
+  }
+  preconnectClipHosts(clips);
+  el.sceneSavedClips.innerHTML = clips.map((clip, index) => `<article class="saved-clip"><div class="clip-screen" id="clipScreen-${escapeHtml(clip.id)}"><button class="clip-play" data-play-clip="${escapeHtml(clip.id)}" aria-label="播放片段">▶</button><span>${clip.end - clip.start}秒片段</span></div><div class="clip-copy"><p class="eyebrow">CLIP ${index + 1}</p><h3>${escapeHtml(clip.title)}</h3><p>${escapeHtml(clip.caption || `${clip.start}s–${clip.end}s`)}</p><button class="text-button" data-delete-clip="${escapeHtml(clip.id)}">删除片段</button></div></article>`).join("");
+  el.sceneSavedClips.querySelectorAll("[data-play-clip]").forEach((button) => button.addEventListener("click", () => playSavedClip(word.id, button.dataset.playClip)));
+  el.sceneSavedClips.querySelectorAll("[data-delete-clip]").forEach((button) => button.addEventListener("click", () => deleteSavedClip(word.id, button.dataset.deleteClip)));
+}
+
+function playSavedClip(wordId, clipId) {
+  const clip = (state.clips[wordId] || []).find((item) => item.id === clipId);
+  if (!clip) return;
+  const host = document.getElementById(`clipScreen-${clip.id}`);
+  if (clip.type === "youtube") {
+    host.innerHTML = `<iframe title="${escapeHtml(clip.title)}" src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(clip.videoId)}?start=${clip.start}&end=${clip.end}&playsinline=1&rel=0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+    return;
+  }
+  host.innerHTML = `<video controls playsinline preload="metadata" src="${safeUrl(clip.url)}#t=${clip.start},${clip.end}"></video>`;
+  const video = host.querySelector("video");
+  video.addEventListener("loadedmetadata", () => { video.currentTime = clip.start; });
+  video.addEventListener("timeupdate", () => { if (video.currentTime >= clip.end) video.pause(); });
+}
+
+function deleteSavedClip(wordId, clipId) {
+  state.clips[wordId] = (state.clips[wordId] || []).filter((clip) => clip.id !== clipId);
+  saveState();
+  const word = state.words.find((item) => item.id === wordId);
+  if (word) renderSavedClips(word);
+}
+
+function detectClipType(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return null;
+    if (extractYouTubeId(value)) return "youtube";
+    if (/\.(mp4|webm)(?:$|\?)/i.test(url.pathname + url.search)) return "video";
+  } catch { return null; }
+  return null;
+}
+
+function extractYouTubeId(value) {
+  try {
+    const url = new URL(value);
+    if (url.hostname === "youtu.be") return /^[\w-]{11}$/.test(url.pathname.slice(1)) ? url.pathname.slice(1) : null;
+    if (url.hostname.endsWith("youtube.com")) {
+      const candidate = url.pathname.startsWith("/shorts/") || url.pathname.startsWith("/embed/") ? url.pathname.split("/")[2] : url.searchParams.get("v");
+      return /^[\w-]{11}$/.test(candidate || "") ? candidate : null;
+    }
+  } catch { return null; }
+  return null;
+}
+
+function preconnectClipHosts(clips) {
+  if (!clips.some((clip) => clip.type === "youtube") || document.querySelector('link[data-video-preconnect]')) return;
+  ["https://www.youtube-nocookie.com", "https://i.ytimg.com"].forEach((href) => { const link = document.createElement("link"); link.rel = "preconnect"; link.href = href; link.dataset.videoPreconnect = "true"; document.head.append(link); });
 }
 
 class ClipProvider {
@@ -488,16 +646,18 @@ const clipProvider = new FreeContextProvider();
 
 function openWordDialog(id = "") {
   const word = state.words.find((item) => item.id === id);
-  el.wordDialogTitle.textContent = word ? "编辑单词" : "添加单词"; el.wordId.value = word?.id || ""; el.wordText.value = word?.text || ""; el.wordMeaning.value = word?.meaning || ""; el.wordPhonetic.value = word?.phonetic || ""; el.wordTags.value = word?.tags.join(", ") || "雅思"; el.wordExample.value = word?.example || ""; el.wordDialog.showModal();
+  const memory = word?.mnemonics || normalizeMnemonics(null, word?.text || "");
+  el.wordDialogTitle.textContent = word ? "编辑单词" : "添加单词"; el.wordId.value = word?.id || ""; el.wordText.value = word?.text || ""; el.wordMeaning.value = word?.meaning || ""; el.wordPhonetic.value = word?.phonetic || ""; el.wordTags.value = word?.tags.join(", ") || "雅思"; el.wordExample.value = word?.example || ""; el.mnemonicRoots.value = memory.roots; el.mnemonicAssociation.value = memory.association; el.mnemonicFamily.value = memory.family; el.mnemonicSyllables.value = memory.syllables; el.wordDialog.showModal();
 }
 
 function saveWordForm(event) {
   event.preventDefault();
   const id = el.wordId.value;
-  const payload = createWord({ text: el.wordText.value, meaning: el.wordMeaning.value, phonetic: el.wordPhonetic.value, example: el.wordExample.value, tags: splitTags(el.wordTags.value) });
+  const mnemonics = { roots: el.mnemonicRoots.value, association: el.mnemonicAssociation.value, family: el.mnemonicFamily.value, syllables: el.mnemonicSyllables.value };
+  const payload = createWord({ text: el.wordText.value, meaning: el.wordMeaning.value, phonetic: el.wordPhonetic.value, example: el.wordExample.value, tags: splitTags(el.wordTags.value), mnemonics });
   if (!payload) return;
   const index = state.words.findIndex((word) => word.id === id);
-  if (index >= 0) state.words[index] = { ...state.words[index], text: payload.text, meaning: payload.meaning, phonetic: payload.phonetic, example: payload.example, tags: payload.tags }; else state.words.unshift(payload);
+  if (index >= 0) state.words[index] = { ...state.words[index], text: payload.text, meaning: payload.meaning, phonetic: payload.phonetic, example: payload.example, tags: payload.tags, mnemonics: payload.mnemonics }; else state.words.unshift(payload);
   saveState(); el.wordDialog.close(); el.wordForm.reset(); renderAll(); showToast("单词已保存");
 }
 
