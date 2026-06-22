@@ -14,5 +14,6 @@ test("service worker keeps generated speech cache during upgrades", () => {
 
 test("offline shell includes shared catalog and scoring core", () => {
   assert.match(worker, /training-core\.js\?v=14/);
+  assert.match(worker, /voice-core\.js\?v=14/);
   assert.match(worker, /data\/scenarios\.json/);
 });

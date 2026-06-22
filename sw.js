@@ -7,6 +7,7 @@ const APP_SHELL = [
   "./index.html?v=14",
   "./styles.css?v=14",
   "./training-core.js?v=14",
+  "./voice-core.js?v=14",
   "./app.js?v=14",
   "./data/scenarios.json",
   "./manifest.webmanifest",

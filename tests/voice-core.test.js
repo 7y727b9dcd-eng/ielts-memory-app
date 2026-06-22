@@ -44,4 +44,18 @@ test("voice comparison requires exact speaker provider and version matches", () 
     ),
     false,
   );
+  assert.equal(
+    core.isVoiceComparable(
+      { speakerId: "lin_xiao", audioProvider: "azure", voiceVersion: 2 },
+      { speakerId: "lin_xiao", audioProvider: "system", voiceVersion: 2 },
+    ),
+    false,
+  );
+  assert.equal(
+    core.isVoiceComparable(
+      { speakerId: "lin_xiao", audioProvider: "azure", voiceVersion: 2 },
+      { speakerId: "lin_xiao", audioProvider: "azure", voiceVersion: 1 },
+    ),
+    false,
+  );
 });
