@@ -47,7 +47,7 @@ const elementIds = [
   "pageTitle", "memorySummary", "newCount", "dueCount", "todayCount", "streakCount", "weakWordList",
   "examBanner", "examBannerTitle", "examBannerText", "examBannerButton", "learningPanel", "examPanel",
   "searchInput", "filterSelect", "libraryList", "levelBars", "masteryRate", "historyList", "examHistoryList",
-  "dailyNewGoalInput", "dailyGoalInput", "autoSpeakInput", "videoEnabledInput", "nextExamSetting",
+  "dailyNewGoalInput", "dailyGoalInput", "autoSpeakInput", "videoEnabledInput", "autoPlayClipsInput", "nextExamSetting",
   "restoreFileInput", "wordDialog", "wordForm", "wordDialogTitle", "wordId", "wordText", "wordMeaning",
   "wordPhonetic", "wordTags", "wordExample", "mnemonicRoots", "mnemonicAssociation", "mnemonicFamily", "mnemonicSyllables",
   "importDialog", "importForm", "importText", "memoryDialog", "memoryWord", "memoryContent", "sceneDialog", "sceneWord", "sceneDescription", "sceneWordId",
@@ -79,6 +79,7 @@ function bindEvents() {
   el.wordForm.addEventListener("submit", saveWordForm);
   el.importForm.addEventListener("submit", importWords);
   el.sceneClipForm.addEventListener("submit", saveSceneClip);
+  el.sceneDialog.addEventListener("close", () => { if (activeView === "learn") renderLearnArea(); });
   document.getElementById("settingsForm").addEventListener("submit", saveSettings);
   el.restoreFileInput.addEventListener("change", restoreBackup);
 }
@@ -102,7 +103,7 @@ function createDefaultState() {
     words: SAMPLE_WORDS.map((word) => createWord({ ...word, mnemonics: SAMPLE_MNEMONICS[word.text] })),
     clips: {}, history: [], exams: [], currentExam: null, lastExamResult: null, learningSession: null,
     examSchedule: { cycleStartedAt: started, nextExamAt: addDays(started, EXAM_INTERVAL_DAYS) },
-    settings: { dailyNewGoal: 10, dailyGoal: 30, autoSpeak: true, videoEnabled: true }
+    settings: { dailyNewGoal: 10, dailyGoal: 30, autoSpeak: true, videoEnabled: true, autoPlayClips: true }
   };
 }
 
@@ -127,7 +128,8 @@ function normalizeState(input) {
       dailyNewGoal: clamp(Number(input.settings?.dailyNewGoal) || 10, 1, 50),
       dailyGoal: clamp(Number(input.settings?.dailyGoal) || 30, 1, 300),
       autoSpeak: Boolean(input.settings?.autoSpeak ?? true),
-      videoEnabled: Boolean(input.settings?.videoEnabled ?? true)
+      videoEnabled: Boolean(input.settings?.videoEnabled ?? true),
+      autoPlayClips: Boolean(input.settings?.autoPlayClips ?? true)
     }
   };
   if (!output.words.length) output.words = fallback.words;
@@ -206,7 +208,8 @@ function normalizeRecord(record) {
 
 function normalizeSession(session) {
   if (!session || !["new", "review"].includes(session.mode) || !Array.isArray(session.wordIds)) return null;
-  return { mode: session.mode, wordIds: session.wordIds.map(String), index: clamp(Number(session.index) || 0, 0, session.wordIds.length), stage: ["preview", "recall", "cloze"].includes(session.stage) ? session.stage : (session.mode === "new" ? "preview" : "recall"), answerRevealed: Boolean(session.answerRevealed), pendingQuality: clamp(Number(session.pendingQuality) || 3, 1, 5), clozeChecked: Boolean(session.clozeChecked), clozeCorrect: Boolean(session.clozeCorrect) };
+  const stage = session.stage === "cloze" ? "scene" : session.stage;
+  return { mode: session.mode, wordIds: session.wordIds.map(String), index: clamp(Number(session.index) || 0, 0, session.wordIds.length), stage: ["preview", "recall", "scene"].includes(stage) ? stage : (session.mode === "new" ? "preview" : "recall"), answerRevealed: Boolean(session.answerRevealed), pendingQuality: clamp(Number(session.pendingQuality) || 3, 1, 5), clozeChecked: Boolean(session.clozeChecked), clozeCorrect: Boolean(session.clozeCorrect) };
 }
 
 function normalizeCurrentExam(exam) {
@@ -316,7 +319,7 @@ function renderLearningPanel(mode) {
   if (mode === "review") return renderRecallStage(word, session, true);
   if (session.stage === "preview") return renderPreviewStage(word, session);
   if (session.stage === "recall") return renderRecallStage(word, session, false);
-  renderClozeStage(word, session);
+  renderSceneStage(word, session);
 }
 
 function sessionHeader(session, labels) {
@@ -325,7 +328,7 @@ function sessionHeader(session, labels) {
 }
 
 function renderPreviewStage(word, session) {
-  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","cloze"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(word.phonetic)}</p></div><div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句，可在词库中补充。")}</blockquote></div>${renderMemoryMethods(word)}<div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="toRecallButton">我看完了，开始回忆</button></div></article>`;
+  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","scene"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(word.phonetic)}</p></div><div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句，可在词库中补充。")}</blockquote></div>${renderMemoryMethods(word)}<div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="toRecallButton">我看完了，开始回忆</button></div></article>`;
   document.getElementById("sessionSpeakButton").addEventListener("click", () => speak(word.text));
   document.getElementById("toRecallButton").addEventListener("click", () => { session.stage = "recall"; session.answerRevealed = false; saveState(); renderLearnArea(); });
   if (state.settings.autoSpeak) setTimeout(() => speak(word.text), 120);
@@ -338,7 +341,7 @@ function renderMemoryMethods(word) {
     ["联想钩子", memory.association],
     ["词族联结", memory.family],
     ["音节拼写", memory.syllables],
-    ["语境记忆", word.example || `用 ${word.text} 造一个和自己有关的句子。`]
+    ["影视语境", (state.clips[word.id] || []).length ? `已保存 ${(state.clips[word.id] || []).length} 个5–20秒片段，第三阶段会直接播放。` : "尚未保存片段；第三阶段可进入影视搜索和添加流程。"]
   ];
   return `<section class="memory-methods"><div class="method-heading"><p class="eyebrow">MEMORY TOOLS</p><strong>五种记忆法</strong></div><div class="memory-method-grid">${methods.map(([title, content], index) => `<details class="memory-method" ${index === 0 ? "open" : ""}><summary><span>${index + 1}</span>${escapeHtml(title)}</summary><p>${escapeHtml(content)}</p></details>`).join("")}</div></section>`;
 }
@@ -350,24 +353,26 @@ function renderRecallStage(word, session, isReview) {
   document.querySelectorAll("[data-quality]").forEach((button) => button.addEventListener("click", () => {
     const quality = Number(button.dataset.quality);
     if (isReview) { applyReview(word, quality, "review"); advanceSession(); }
-    else { session.pendingQuality = quality; session.stage = "cloze"; session.clozeChecked = false; session.clozeCorrect = false; saveState(); renderLearnArea(); }
+    else { session.pendingQuality = quality; session.stage = "scene"; session.clozeChecked = false; session.clozeCorrect = false; saveState(); renderLearnArea(); }
   }));
   if (!session.answerRevealed && state.settings.autoSpeak) setTimeout(() => speak(word.text), 120);
 }
 
-function renderClozeStage(word, session) {
-  const sentence = word.example ? makeCloze(word.example, word.text) : `根据释义拼写英文：${word.meaning}`;
-  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","cloze"])}<div><p class="eyebrow">EXAMPLE CLOZE</p><h2>完成例句</h2></div><div class="cloze-sentence">${escapeHtml(sentence)}</div><form id="clozeForm"><input class="answer-input" id="clozeInput" autocomplete="off" autocapitalize="none" placeholder="输入英文单词" ${session.clozeChecked ? "disabled" : ""} /><div class="command-row">${session.clozeChecked ? `<div class="feedback ${session.clozeCorrect ? "correct" : "wrong"}">${session.clozeCorrect ? "回答正确" : `正确答案：${escapeHtml(word.text)}`}</div><button class="primary-button" type="button" id="nextWordButton">下一个</button>` : `<button class="primary-button" type="submit">检查答案</button>`}</div></form></article>`;
-  document.getElementById("clozeForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const response = document.getElementById("clozeInput").value;
-    session.clozeCorrect = normalizeAnswer(response) === normalizeAnswer(word.text);
-    session.clozeChecked = true; saveState(); renderLearnArea();
-  });
-  document.getElementById("nextWordButton")?.addEventListener("click", () => {
-    const quality = session.clozeCorrect ? session.pendingQuality : Math.min(2, session.pendingQuality);
-    applyReview(word, quality, "new-complete"); advanceSession();
-  });
+function renderSceneStage(word, session) {
+  const clips = state.clips[word.id] || [];
+  if (!clips.length) {
+    el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","scene"])}<div><p class="eyebrow">VIDEO CONTEXT</p><h2>用影视场景记住它</h2></div><div class="scene-learning-empty"><div class="scene-icon">▶</div><h3>还没有 ${escapeHtml(word.text)} 的影视片段</h3><p>先搜索并保存一个5–20秒公开视频片段。下次学习时会直接在这里播放，不再做普通例句填空。</p></div><div class="session-tools stacked-mobile"><button class="secondary-button" id="skipSceneButton">本词先跳过影视</button><button class="primary-button" id="findSceneButton">查找并添加片段</button></div></article>`;
+    document.getElementById("findSceneButton").addEventListener("click", () => openSceneDialog(word));
+    document.getElementById("skipSceneButton").addEventListener("click", () => { applyReview(word, session.pendingQuality, "new-complete"); advanceSession(); });
+    return;
+  }
+  const clip = clips[Math.min(session.index, clips.length - 1)];
+  const prompt = clip.caption ? makeCloze(clip.caption, word.text) : "观看片段并听辨目标单词，然后在下方输入。";
+  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","scene"])}<div><p class="eyebrow">VIDEO CONTEXT</p><h2>影视语境记忆</h2></div><div class="learning-video" id="learningVideoHost"><button class="clip-play" id="playLearningClip" aria-label="播放影视片段">▶</button><span>${clip.end - clip.start}秒 · ${escapeHtml(clip.title)}</span></div><div class="cloze-sentence">${escapeHtml(prompt)}</div><form id="sceneRecallForm"><input class="answer-input" id="sceneRecallInput" autocomplete="off" autocapitalize="none" placeholder="输入片段中的目标单词" ${session.clozeChecked ? "disabled" : ""} /><div class="command-row">${session.clozeChecked ? `<div class="feedback ${session.clozeCorrect ? "correct" : "wrong"}">${session.clozeCorrect ? "场景回忆正确" : `正确答案：${escapeHtml(word.text)}`}</div><button class="primary-button" type="button" id="nextWordButton">下一个</button>` : `<button class="primary-button" type="submit">检查答案</button>`}</div></form></article>`;
+  document.getElementById("playLearningClip").addEventListener("click", () => mountClipPlayer(document.getElementById("learningVideoHost"), clip, true));
+  if (state.settings.autoPlayClips) mountClipPlayer(document.getElementById("learningVideoHost"), clip, true);
+  document.getElementById("sceneRecallForm").addEventListener("submit", (event) => { event.preventDefault(); session.clozeCorrect = normalizeAnswer(document.getElementById("sceneRecallInput").value) === normalizeAnswer(word.text); session.clozeChecked = true; saveState(); renderLearnArea(); });
+  document.getElementById("nextWordButton")?.addEventListener("click", () => { const quality = session.clozeCorrect ? session.pendingQuality : Math.min(2, session.pendingQuality); applyReview(word, quality, "new-complete"); advanceSession(); });
 }
 
 function advanceSession() {
@@ -557,13 +562,18 @@ function playSavedClip(wordId, clipId) {
   const clip = (state.clips[wordId] || []).find((item) => item.id === clipId);
   if (!clip) return;
   const host = document.getElementById(`clipScreen-${clip.id}`);
+  mountClipPlayer(host, clip);
+}
+
+function mountClipPlayer(host, clip, autoplay = false) {
+  if (!host || !clip) return;
   if (clip.type === "youtube") {
-    host.innerHTML = `<iframe title="${escapeHtml(clip.title)}" src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(clip.videoId)}?start=${clip.start}&end=${clip.end}&playsinline=1&rel=0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+    host.innerHTML = `<iframe title="${escapeHtml(clip.title)}" src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(clip.videoId)}?start=${clip.start}&end=${clip.end}&playsinline=1&rel=0&autoplay=${autoplay ? 1 : 0}" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
     return;
   }
-  host.innerHTML = `<video controls playsinline preload="metadata" src="${safeUrl(clip.url)}#t=${clip.start},${clip.end}"></video>`;
+  host.innerHTML = `<video controls playsinline preload="metadata" ${autoplay ? "autoplay" : ""} src="${safeUrl(clip.url)}#t=${clip.start},${clip.end}"></video>`;
   const video = host.querySelector("video");
-  video.addEventListener("loadedmetadata", () => { video.currentTime = clip.start; });
+  video.addEventListener("loadedmetadata", () => { video.currentTime = clip.start; if (autoplay) video.play().catch(() => {}); });
   video.addEventListener("timeupdate", () => { if (video.currentTime >= clip.end) video.pause(); });
 }
 
@@ -690,11 +700,11 @@ function renderStats() {
 }
 
 function renderSettings() {
-  el.dailyNewGoalInput.value = state.settings.dailyNewGoal; el.dailyGoalInput.value = state.settings.dailyGoal; el.autoSpeakInput.checked = state.settings.autoSpeak; el.videoEnabledInput.checked = state.settings.videoEnabled; el.nextExamSetting.textContent = `下一场正式抽查：${formatDateKey(state.examSchedule.nextExamAt)}`;
+  el.dailyNewGoalInput.value = state.settings.dailyNewGoal; el.dailyGoalInput.value = state.settings.dailyGoal; el.autoSpeakInput.checked = state.settings.autoSpeak; el.videoEnabledInput.checked = state.settings.videoEnabled; el.autoPlayClipsInput.checked = state.settings.autoPlayClips; el.nextExamSetting.textContent = `下一场正式抽查：${formatDateKey(state.examSchedule.nextExamAt)}`;
 }
 
 function saveSettings(event) {
-  event.preventDefault(); state.settings.dailyNewGoal = clamp(Number(el.dailyNewGoalInput.value) || 10, 1, 50); state.settings.dailyGoal = clamp(Number(el.dailyGoalInput.value) || 30, 1, 300); state.settings.autoSpeak = el.autoSpeakInput.checked; state.settings.videoEnabled = el.videoEnabledInput.checked; saveState(); renderAll(); showToast("设置已保存");
+  event.preventDefault(); state.settings.dailyNewGoal = clamp(Number(el.dailyNewGoalInput.value) || 10, 1, 50); state.settings.dailyGoal = clamp(Number(el.dailyGoalInput.value) || 30, 1, 300); state.settings.autoSpeak = el.autoSpeakInput.checked; state.settings.videoEnabled = el.videoEnabledInput.checked; state.settings.autoPlayClips = el.autoPlayClipsInput.checked; saveState(); renderAll(); showToast("设置已保存");
 }
 
 function exportBackup() {

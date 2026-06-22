@@ -8,7 +8,7 @@ struct WebAppView: UIViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
-        configuration.mediaTypesRequiringUserActionForPlayback = .all
+        configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.setURLSchemeHandler(LocalSchemeHandler(), forURLScheme: "wordtuo")
         configuration.userContentController.add(context.coordinator, name: "shareBackup")
 
