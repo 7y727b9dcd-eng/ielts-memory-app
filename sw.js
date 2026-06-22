@@ -1,10 +1,14 @@
-const CACHE_NAME = "listening-training-pwa-v12";
+const CACHE_NAME = "listening-training-pwa-v14";
+const AUDIO_CACHE_NAME = "listening-training-audio-v1";
+const PERSISTENT_CACHES = new Set([CACHE_NAME, AUDIO_CACHE_NAME]);
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./index.html?v=12",
-  "./styles.css?v=12",
-  "./app.js?v=12",
+  "./index.html?v=14",
+  "./styles.css?v=14",
+  "./training-core.js?v=14",
+  "./app.js?v=14",
+  "./data/scenarios.json",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",
@@ -18,7 +22,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))));
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => !PERSISTENT_CACHES.has(key)).map((key) => caches.delete(key)))));
   self.clients.claim();
 });
 

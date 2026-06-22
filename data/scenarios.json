@@ -1,0 +1,1071 @@
+{
+  "version": 2,
+  "scenarios": [
+    {
+      "id": "baseline-brief-1",
+      "baseline": true,
+      "level": 1,
+      "category": "任务交代",
+      "stage": "边听边压缩",
+      "duration": 10,
+      "units": 4,
+      "rate": 0.88,
+      "responseType": "choice",
+      "text": "小周，麻烦你把上午讨论的三个修改点整理一下，今天下午四点前发到项目群里，大家下班前需要确认。",
+      "info": [
+        {
+          "type": "person",
+          "text": "小周"
+        },
+        {
+          "type": "action",
+          "text": "整理上午讨论的三个修改点"
+        },
+        {
+          "type": "time",
+          "text": "下午四点前"
+        },
+        {
+          "type": "reason",
+          "text": "让大家下班前确认"
+        }
+      ],
+      "question": "这段话最核心的任务是什么？",
+      "options": [
+        "整理三个修改点并发到项目群",
+        "重新组织一次项目会议",
+        "请大家提交下周计划",
+        "检查所有人的下班时间"
+      ],
+      "correct": 0,
+      "intentCheck": {
+        "prompt": "这段交代的核心目的是什么？",
+        "options": [
+          "整理修改点并发到项目群",
+          "重新召开项目会议",
+          "统计大家的下班时间"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些是执行时必须保留的约束？",
+        "options": [
+          "下午四点前发送",
+          "发送到项目群",
+          "改为明天上午发送",
+          "只发给一位同事"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "baseline-progress-2",
+      "baseline": true,
+      "level": 1,
+      "category": "进度同步",
+      "stage": "保留顺序",
+      "duration": 15,
+      "units": 5,
+      "rate": 0.92,
+      "responseType": "order",
+      "text": "客户已经确认了首页方案，设计部明天会补齐移动端页面，等他们交付以后，开发先做登录和首页，数据报表放到下周处理。",
+      "info": [
+        {
+          "type": "result",
+          "text": "客户确认首页方案"
+        },
+        {
+          "type": "time",
+          "text": "设计部明天补齐移动端"
+        },
+        {
+          "type": "condition",
+          "text": "设计交付以后"
+        },
+        {
+          "type": "action",
+          "text": "开发先做登录和首页"
+        },
+        {
+          "type": "time",
+          "text": "数据报表下周处理"
+        }
+      ],
+      "orderItems": [
+        "客户确认首页方案",
+        "设计补齐移动端",
+        "开发做登录和首页",
+        "处理数据报表"
+      ],
+      "orderAnswer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "question": "按对话中的先后安排还原工作顺序",
+      "intentCheck": {
+        "prompt": "这段同步主要在说明什么？",
+        "options": [
+          "工作按设计、开发、报表的顺序推进",
+          "所有工作都在今天完成",
+          "客户要求取消移动端页面"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些推进条件不能遗漏？",
+        "options": [
+          "设计交付后开发再开始",
+          "数据报表安排到下周",
+          "开发必须先做报表",
+          "移动端页面取消"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "baseline-problem-3",
+      "baseline": true,
+      "level": 2,
+      "category": "问题解释",
+      "stage": "结构化复述",
+      "duration": 22,
+      "units": 6,
+      "rate": 0.95,
+      "responseType": "voice",
+      "text": "昨天导出的销售数字少了一部分，不是原始数据丢失，而是报表筛选条件沿用了五月份。你先把日期改成六月一号到今天，再重新导出一份，旧文件先不要发给区域负责人。",
+      "info": [
+        {
+          "type": "result",
+          "text": "销售数字少了一部分"
+        },
+        {
+          "type": "reason",
+          "text": "沿用了五月筛选条件"
+        },
+        {
+          "type": "condition",
+          "text": "原始数据没有丢失"
+        },
+        {
+          "type": "action",
+          "text": "日期改为六月一号到今天"
+        },
+        {
+          "type": "action",
+          "text": "重新导出"
+        },
+        {
+          "type": "condition",
+          "text": "旧文件不要发送"
+        }
+      ],
+      "question": "用自己的话复述：出了什么问题、为什么、下一步怎么做？",
+      "responseTemplate": "问题是……，原因是……，接下来我会……。",
+      "intentCheck": {
+        "prompt": "问题判断和下一步是什么？",
+        "options": [
+          "筛选日期错误，需要修正后重导",
+          "原始数据丢失，需要重新录入",
+          "销售数字正确，可以直接发送"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "处理时有哪些明确限制？",
+        "options": [
+          "日期改为六月一号到今天",
+          "旧文件暂不发送",
+          "删除全部原始数据",
+          "沿用五月筛选条件"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "baseline-meeting-4",
+      "baseline": true,
+      "level": 3,
+      "category": "会议讨论",
+      "stage": "长段理解",
+      "duration": 34,
+      "units": 7,
+      "rate": 1,
+      "responseType": "choice",
+      "text": "关于下周的产品演示，我们原来计划周二上午进行，但销售团队周二要去拜访客户，所以先调整到周三下午两点。演示内容仍然由林悦负责，技术问题让陈工现场回答。请在周一中午前完成演示稿，周二我们内部走一遍流程，如果发现数据有变化，只更新图表，不要临时增加新功能。",
+      "info": [
+        {
+          "type": "time",
+          "text": "改到周三下午两点"
+        },
+        {
+          "type": "reason",
+          "text": "销售周二拜访客户"
+        },
+        {
+          "type": "person",
+          "text": "林悦负责演示"
+        },
+        {
+          "type": "person",
+          "text": "陈工回答技术问题"
+        },
+        {
+          "type": "time",
+          "text": "周一中午前完成演示稿"
+        },
+        {
+          "type": "time",
+          "text": "周二内部演练"
+        },
+        {
+          "type": "condition",
+          "text": "只更新图表，不增加新功能"
+        }
+      ],
+      "question": "哪项安排同时符合时间和变更限制？",
+      "options": [
+        "周三下午演示，数据变化时只更新图表",
+        "周二上午演示，并增加客户要求的新功能",
+        "周三上午演示，技术问题由林悦回答",
+        "周一完成演示后不再进行内部演练"
+      ],
+      "correct": 0,
+      "intentCheck": {
+        "prompt": "这段会议安排的核心变化是什么？",
+        "options": [
+          "调整演示时间并按既定边界准备",
+          "取消产品演示",
+          "增加新功能后再确定日期"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些变更边界必须遵守？",
+        "options": [
+          "数据变化时只更新图表",
+          "不要临时增加新功能",
+          "改回周二上午演示",
+          "取消内部演练"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "task-handoff-1",
+      "focus": "chunk",
+      "level": 1,
+      "category": "任务交代",
+      "stage": "边听边压缩",
+      "duration": 12,
+      "units": 4,
+      "rate": 0.9,
+      "responseType": "choice",
+      "text": "请把供应商的新报价和上个月的版本做个对比，重点标出涨价超过百分之五的项目，明天上午十点前发给我。",
+      "info": [
+        {
+          "type": "action",
+          "text": "对比新旧报价"
+        },
+        {
+          "type": "condition",
+          "text": "标出涨价超过 5% 的项目"
+        },
+        {
+          "type": "time",
+          "text": "明天上午十点前"
+        },
+        {
+          "type": "person",
+          "text": "发给任务交代人"
+        }
+      ],
+      "question": "需要重点标出什么？",
+      "options": [
+        "所有价格变化",
+        "涨价超过 5% 的项目",
+        "上月新增项目",
+        "供应商联系方式"
+      ],
+      "correct": 1,
+      "intentCheck": {
+        "prompt": "这项任务最核心的交付是什么？",
+        "options": [
+          "比较新旧报价并标出明显涨价项",
+          "重新选择供应商",
+          "只整理上个月报价"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些要求不能遗漏？",
+        "options": [
+          "标出涨价超过 5% 的项目",
+          "明天上午十点前发送",
+          "所有变化都必须标红",
+          "下周再发送"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "feedback-1",
+      "focus": "response",
+      "level": 1,
+      "category": "意见反馈",
+      "stage": "理解与应答",
+      "duration": 14,
+      "units": 4,
+      "rate": 0.94,
+      "responseType": "voice",
+      "text": "这份总结的数据很完整，不过结论部分有点长。你保留前三条主要发现，每条控制在两句话以内，具体计算过程放到附件里就可以。",
+      "info": [
+        {
+          "type": "result",
+          "text": "数据完整"
+        },
+        {
+          "type": "result",
+          "text": "结论过长"
+        },
+        {
+          "type": "condition",
+          "text": "只保留前三条发现，每条两句话内"
+        },
+        {
+          "type": "action",
+          "text": "计算过程移到附件"
+        }
+      ],
+      "question": "先确认你理解的修改要求，再说明你会怎么处理。",
+      "responseTemplate": "我理解需要……，我会先……，然后……。",
+      "intentCheck": {
+        "prompt": "反馈要求你如何修改总结？",
+        "options": [
+          "压缩结论并把计算过程放入附件",
+          "删除全部数据",
+          "增加更多结论和案例"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些修改边界必须遵守？",
+        "options": [
+          "只保留前三条主要发现",
+          "每条不超过两句话",
+          "删除具体计算过程",
+          "重新收集全部数据"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "progress-1",
+      "focus": "chunk",
+      "level": 2,
+      "category": "进度同步",
+      "stage": "保留顺序",
+      "duration": 20,
+      "units": 5,
+      "rate": 0.96,
+      "responseType": "order",
+      "text": "调研问卷今天已经关闭，运营下午会清理无效回答。明天上午数据组开始分析，周五给出第一版结论，确认方向以后再请设计做汇报页面。",
+      "info": [
+        {
+          "type": "result",
+          "text": "问卷已关闭"
+        },
+        {
+          "type": "action",
+          "text": "运营清理无效回答"
+        },
+        {
+          "type": "time",
+          "text": "明早开始分析"
+        },
+        {
+          "type": "time",
+          "text": "周五给第一版结论"
+        },
+        {
+          "type": "condition",
+          "text": "确认方向后再做汇报页面"
+        }
+      ],
+      "question": "还原这项工作的推进顺序",
+      "orderItems": [
+        "关闭问卷",
+        "清理无效回答",
+        "分析数据",
+        "给出第一版结论",
+        "制作汇报页面"
+      ],
+      "orderAnswer": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "intentCheck": {
+        "prompt": "这段同步的主线是什么？",
+        "options": [
+          "从清理问卷到分析、结论和汇报页面",
+          "立即开始设计汇报页面",
+          "重新开放问卷收集"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些依赖关系必须保留？",
+        "options": [
+          "周五先给第一版结论",
+          "确认方向后再做汇报页面",
+          "今天完成所有分析",
+          "设计先于数据分析"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "meeting-1",
+      "focus": "speed",
+      "level": 2,
+      "category": "会议讨论",
+      "stage": "长段理解",
+      "duration": 24,
+      "units": 6,
+      "rate": 0.98,
+      "responseType": "choice",
+      "text": "这次活动预算先维持八万元不变。场地报价比预期高，所以把礼品数量从三百份降到两百份，但不要降低餐饮标准。市场部今天确认场地，行政周四前锁定餐饮，剩余预算留给现场物料。",
+      "info": [
+        {
+          "type": "condition",
+          "text": "总预算八万元不变"
+        },
+        {
+          "type": "reason",
+          "text": "场地报价偏高"
+        },
+        {
+          "type": "action",
+          "text": "礼品降到两百份"
+        },
+        {
+          "type": "condition",
+          "text": "餐饮标准不降低"
+        },
+        {
+          "type": "time",
+          "text": "今天确认场地，周四锁定餐饮"
+        },
+        {
+          "type": "result",
+          "text": "余款用于现场物料"
+        }
+      ],
+      "question": "预算调整的原则是什么？",
+      "options": [
+        "增加预算保证礼品数量",
+        "减少礼品但保持餐饮标准",
+        "降低餐饮标准保留三百份礼品",
+        "取消现场物料以支付场地"
+      ],
+      "correct": 1,
+      "intentCheck": {
+        "prompt": "预算调整的总体原则是什么？",
+        "options": [
+          "总预算不变，减少礼品但保持餐饮",
+          "增加预算以保留全部礼品",
+          "降低餐饮并取消物料"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些预算边界不能改变？",
+        "options": [
+          "总预算维持八万元",
+          "餐饮标准不降低",
+          "礼品仍保持三百份",
+          "取消现场物料"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "problem-2",
+      "focus": "chunk",
+      "level": 2,
+      "category": "问题解释",
+      "stage": "结构化复述",
+      "duration": 26,
+      "units": 6,
+      "rate": 1,
+      "responseType": "voice",
+      "text": "客服这两天收到的重复投诉突然变多，初步看不是产品故障，而是帮助中心的旧链接仍然排在搜索结果前面。内容团队今晚会更新跳转，客服暂时统一回复新链接，明天下午再看投诉量有没有下降。",
+      "info": [
+        {
+          "type": "result",
+          "text": "重复投诉变多"
+        },
+        {
+          "type": "condition",
+          "text": "不是产品故障"
+        },
+        {
+          "type": "reason",
+          "text": "旧链接搜索排名靠前"
+        },
+        {
+          "type": "action",
+          "text": "今晚更新跳转"
+        },
+        {
+          "type": "action",
+          "text": "客服统一回复新链接"
+        },
+        {
+          "type": "time",
+          "text": "明天下午观察投诉量"
+        }
+      ],
+      "question": "向同事复述问题判断、临时措施和检查时间。",
+      "responseTemplate": "目前判断……，今晚先……，明天下午再……。",
+      "intentCheck": {
+        "prompt": "目前对投诉增加的判断是什么？",
+        "options": [
+          "旧链接导致重复投诉，需要修复并观察",
+          "产品发生严重故障",
+          "客服回复内容完全错误"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些临时处理要求必须执行？",
+        "options": [
+          "客服统一回复新链接",
+          "明天下午观察投诉量",
+          "立即关闭产品",
+          "不再回复投诉"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "task-handoff-3",
+      "focus": "speed",
+      "level": 3,
+      "category": "任务交代",
+      "stage": "长段理解",
+      "duration": 32,
+      "units": 7,
+      "rate": 1.02,
+      "responseType": "order",
+      "text": "月底复盘会之前要准备三份材料。你先向财务确认实际支出，拿到数字后更新项目成本表；同时请运营补充活动转化数据。两边资料齐了以后再写复盘结论，结论不要超过一页。成本表周三完成，完整材料周四下班前发给参会人。",
+      "info": [
+        {
+          "type": "action",
+          "text": "向财务确认支出"
+        },
+        {
+          "type": "action",
+          "text": "更新成本表"
+        },
+        {
+          "type": "action",
+          "text": "请运营补充转化数据"
+        },
+        {
+          "type": "condition",
+          "text": "资料齐后写结论"
+        },
+        {
+          "type": "condition",
+          "text": "结论不超过一页"
+        },
+        {
+          "type": "time",
+          "text": "成本表周三完成"
+        },
+        {
+          "type": "time",
+          "text": "周四下班前发完整材料"
+        }
+      ],
+      "question": "按依赖关系还原主要步骤",
+      "orderItems": [
+        "确认支出并收集转化数据",
+        "更新项目成本表",
+        "资料齐后写结论",
+        "周四发送完整材料"
+      ],
+      "orderAnswer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "intentCheck": {
+        "prompt": "复盘会前需要完成什么？",
+        "options": [
+          "汇总成本和转化数据后形成复盘材料",
+          "只更新项目成本表",
+          "把复盘会推迟到下月"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些交付限制不能遗漏？",
+        "options": [
+          "结论不超过一页",
+          "完整材料周四下班前发送",
+          "先写结论再收集资料",
+          "成本表下周完成"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "meeting-3",
+      "focus": "response",
+      "level": 3,
+      "category": "会议讨论",
+      "stage": "理解与应答",
+      "duration": 38,
+      "units": 8,
+      "rate": 1.04,
+      "responseType": "voice",
+      "text": "新员工培训原定线上完成，但上次反馈说互动不足，所以第一天改为线下，后两天仍然线上。人力负责场地和课程通知，业务部门各派一位同事参加第一天下午的答疑。课程资料要在培训前三天上传，讲师如果修改案例，必须在当天中午前告诉人力。由于会议室只能坐四十人，超过的人安排到下个月，不临时更换更大的场地。",
+      "info": [
+        {
+          "type": "condition",
+          "text": "第一天线下，后两天线上"
+        },
+        {
+          "type": "reason",
+          "text": "上次反馈互动不足"
+        },
+        {
+          "type": "person",
+          "text": "人力负责场地和通知"
+        },
+        {
+          "type": "person",
+          "text": "业务部门派人答疑"
+        },
+        {
+          "type": "time",
+          "text": "资料提前三天上传"
+        },
+        {
+          "type": "time",
+          "text": "案例修改当天中午前通知"
+        },
+        {
+          "type": "condition",
+          "text": "会议室上限四十人"
+        },
+        {
+          "type": "result",
+          "text": "超员安排到下个月"
+        }
+      ],
+      "question": "作为执行人，确认形式、分工、截止时间和人数限制。",
+      "responseTemplate": "我确认培训形式是……，分工是……，需要在……前完成，人数方面……。",
+      "intentCheck": {
+        "prompt": "新员工培训方案的核心调整是什么？",
+        "options": [
+          "第一天线下、后两天线上并按容量安排",
+          "三天全部改为线下",
+          "取消业务部门答疑"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些执行边界必须遵守？",
+        "options": [
+          "课程资料提前三天上传",
+          "会议室最多四十人",
+          "超员临时更换大场地",
+          "案例可在培训后通知"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "feedback-3",
+      "focus": "speed",
+      "level": 3,
+      "category": "意见反馈",
+      "stage": "长段理解",
+      "duration": 40,
+      "units": 8,
+      "rate": 1.05,
+      "responseType": "choice",
+      "text": "方案整体方向可以继续，但目前的用户数据只覆盖老客户，不能直接支持新市场判断。先保留现有结论作为参考，再从最近三个月的新注册用户里抽取两百人补做访谈。研究团队周五给出访谈提纲，下周二开始联系用户。因为发布时间不变，产品原型可以同步推进，不过最终文案要等新访谈结果出来以后再定。",
+      "info": [
+        {
+          "type": "result",
+          "text": "方案方向可继续"
+        },
+        {
+          "type": "condition",
+          "text": "现有数据只覆盖老客户"
+        },
+        {
+          "type": "condition",
+          "text": "旧结论仅作参考"
+        },
+        {
+          "type": "action",
+          "text": "访谈两百名新注册用户"
+        },
+        {
+          "type": "time",
+          "text": "周五出提纲"
+        },
+        {
+          "type": "time",
+          "text": "下周二联系用户"
+        },
+        {
+          "type": "action",
+          "text": "原型同步推进"
+        },
+        {
+          "type": "condition",
+          "text": "最终文案等待访谈结果"
+        }
+      ],
+      "question": "哪些工作可以立即继续，哪些必须等待？",
+      "options": [
+        "原型可推进，最终文案等待新访谈",
+        "所有工作都等访谈结束后开始",
+        "最终文案先定，原型等待新数据",
+        "取消新访谈，直接使用老客户结论"
+      ],
+      "correct": 0,
+      "intentCheck": {
+        "prompt": "方案接下来应如何推进？",
+        "options": [
+          "补充新用户访谈，同时继续原型工作",
+          "停止全部工作等待数据",
+          "直接用老客户数据确定最终文案"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些推进边界必须保留？",
+        "options": [
+          "最终文案等待新访谈结果",
+          "现有结论只作参考",
+          "产品原型必须停止",
+          "取消两百人访谈"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "chunk-brief-2",
+      "focus": "chunk",
+      "level": 1,
+      "category": "任务交代",
+      "stage": "边听边压缩",
+      "duration": 18,
+      "units": 5,
+      "rate": 0.92,
+      "responseType": "order",
+      "text": "王然先把合同里的交付日期改到八月十五日，再请法务确认违约条款。法务回复以后，把最终版本发给供应商，今天不要先发旧文件。",
+      "info": [
+        {
+          "type": "person",
+          "text": "王然负责修改"
+        },
+        {
+          "type": "action",
+          "text": "交付日期改到八月十五日"
+        },
+        {
+          "type": "action",
+          "text": "请法务确认违约条款"
+        },
+        {
+          "type": "condition",
+          "text": "法务回复后再发供应商"
+        },
+        {
+          "type": "condition",
+          "text": "不发送旧文件"
+        }
+      ],
+      "question": "按依赖关系排列处理步骤",
+      "orderItems": [
+        "修改交付日期",
+        "请法务确认条款",
+        "等待法务回复",
+        "发送最终版本"
+      ],
+      "orderAnswer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "intentCheck": {
+        "prompt": "合同处理的正确主线是什么？",
+        "options": [
+          "改日期并经法务确认后发送最终版",
+          "立即发送旧文件",
+          "只修改违约条款"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些发送条件必须满足？",
+        "options": [
+          "等待法务回复后再发",
+          "今天不要发送旧文件",
+          "交付日期保持不变",
+          "无需供应商确认"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "speed-update-2",
+      "focus": "speed",
+      "level": 2,
+      "category": "进度同步",
+      "stage": "渐进式提速",
+      "duration": 28,
+      "units": 6,
+      "rate": 1.08,
+      "responseType": "choice",
+      "text": "新版帮助文档已经完成中文校对，英文版还差支付部分。翻译团队明天中午补齐，产品经理下午统一检查链接。如果没有严重错误，周四先发布网页版，应用内入口等下周版本更新时再开放。",
+      "info": [
+        {
+          "type": "result",
+          "text": "中文校对完成"
+        },
+        {
+          "type": "result",
+          "text": "英文支付部分未完成"
+        },
+        {
+          "type": "time",
+          "text": "明天中午补齐翻译"
+        },
+        {
+          "type": "action",
+          "text": "产品经理检查链接"
+        },
+        {
+          "type": "time",
+          "text": "周四先发布网页版"
+        },
+        {
+          "type": "condition",
+          "text": "应用内入口下周再开放"
+        }
+      ],
+      "question": "哪项发布安排正确？",
+      "options": [
+        "周四先发布网页版，应用内入口下周开放",
+        "所有版本都推迟到下周",
+        "明天中午直接开放应用内入口",
+        "只发布英文版并取消中文校对"
+      ],
+      "correct": 0,
+      "intentCheck": {
+        "prompt": "帮助文档的发布安排是什么？",
+        "options": [
+          "补齐英文并检查后先发网页，应用入口下周开放",
+          "明天直接开放全部入口",
+          "只发布英文版"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些发布条件不能遗漏？",
+        "options": [
+          "没有严重错误才在周四发布网页",
+          "应用内入口等下周版本",
+          "中文校对尚未完成",
+          "取消链接检查"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "response-risk-2",
+      "focus": "response",
+      "level": 2,
+      "category": "问题解释",
+      "stage": "理解与应答",
+      "duration": 25,
+      "units": 6,
+      "rate": 0.98,
+      "responseType": "voice",
+      "text": "测试环境的短信验证码今天偶尔延迟，不影响正式用户。技术团队已经联系服务商，预计下午五点前恢复。你先暂停内部批量测试，但单个账号可以继续；如果五点后仍未恢复，再通知项目负责人调整明天的验收时间。",
+      "info": [
+        {
+          "type": "result",
+          "text": "测试短信偶尔延迟"
+        },
+        {
+          "type": "condition",
+          "text": "不影响正式用户"
+        },
+        {
+          "type": "time",
+          "text": "预计下午五点前恢复"
+        },
+        {
+          "type": "action",
+          "text": "暂停内部批量测试"
+        },
+        {
+          "type": "condition",
+          "text": "单个账号可以继续"
+        },
+        {
+          "type": "condition",
+          "text": "五点后未恢复再调整验收"
+        }
+      ],
+      "question": "向负责人确认影响范围、当前措施和升级条件。",
+      "responseTemplate": "目前影响……，我会先……；如果……，再……。",
+      "intentCheck": {
+        "prompt": "当前短信延迟应如何处理？",
+        "options": [
+          "暂停批量测试并在五点后按恢复情况升级",
+          "停止正式用户服务",
+          "立即取消明天验收"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些影响边界和条件必须说明？",
+        "options": [
+          "单个账号仍可测试",
+          "五点后未恢复再调整验收",
+          "正式用户已经受影响",
+          "现在就通知取消验收"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "response-change-3",
+      "focus": "response",
+      "level": 3,
+      "category": "会议讨论",
+      "stage": "理解与应答",
+      "duration": 35,
+      "units": 7,
+      "rate": 1.02,
+      "responseType": "voice",
+      "text": "客户希望把培训从两小时缩短到九十分钟，但要求保留现场练习。我们不删练习，把开场介绍压缩十分钟，产品演示减少二十分钟，问答环节维持半小时。课程负责人今天修改流程，讲师明早确认；如果客户再增加内容，只能替换现有案例，不能延长结束时间。",
+      "info": [
+        {
+          "type": "result",
+          "text": "培训缩短到九十分钟"
+        },
+        {
+          "type": "condition",
+          "text": "保留现场练习"
+        },
+        {
+          "type": "action",
+          "text": "开场压缩十分钟"
+        },
+        {
+          "type": "action",
+          "text": "演示减少二十分钟"
+        },
+        {
+          "type": "condition",
+          "text": "问答保持半小时"
+        },
+        {
+          "type": "time",
+          "text": "今天改流程，明早确认"
+        },
+        {
+          "type": "condition",
+          "text": "新增内容只能替换案例"
+        }
+      ],
+      "question": "向客户复述新的时长分配和后续变更边界。",
+      "responseTemplate": "新的总时长是……，我们保留……，通过……压缩；后续新增内容只能……。",
+      "intentCheck": {
+        "prompt": "培训时长调整的总体原则是什么？",
+        "options": [
+          "压缩到九十分钟但保留练习和结束时间",
+          "删除现场练习",
+          "延长结束时间容纳新内容"
+        ],
+        "correct": 0
+      },
+      "constraintCheck": {
+        "prompt": "哪些后续变更边界必须遵守？",
+        "options": [
+          "保留现场练习",
+          "新增内容只能替换现有案例",
+          "问答环节全部取消",
+          "可以延长结束时间"
+        ],
+        "correct": [
+          0,
+          1
+        ]
+      }
+    }
+  ]
+}

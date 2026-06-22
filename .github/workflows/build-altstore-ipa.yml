@@ -9,6 +9,8 @@ on:
       - "index.html"
       - "styles.css"
       - "app.js"
+      - "training-core.js"
+      - "data/**"
       - "manifest.webmanifest"
       - "sw.js"
       - "icons/**"
@@ -31,8 +33,9 @@ jobs:
         run: |
           rm -rf AltStore-App/Web
           mkdir -p AltStore-App/Web
-          cp index.html styles.css app.js manifest.webmanifest sw.js AltStore-App/Web/
+          cp index.html styles.css app.js training-core.js manifest.webmanifest sw.js AltStore-App/Web/
           cp -R icons AltStore-App/Web/icons
+          cp -R data AltStore-App/Web/data
 
       - name: Generate Xcode project
         working-directory: AltStore-App

@@ -3,10 +3,27 @@
 document.documentElement.dataset.scriptLoaded = "true";
 
 const DB_NAME = "listen-respond-training";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const PROFILE_KEY = "training-profile-v1";
 const SETTINGS_KEY = "training-settings-v1";
 const FALLBACK_KEY = "listening-training-fallback-v1";
+const SCENARIO_CATALOG_URL = "./data/scenarios.json";
+const AUDIO_CACHE_NAME = "listening-training-audio-v1";
+const TTS_VERSION = "1";
+const SLOT_TYPES = ["person", "action", "condition", "time", "reason"];
+
+const VOICE_PROFILES = Object.freeze({
+  natural: { label: "自然交流", description: "像同事面对面交代工作" },
+  briefing: { label: "清晰汇报", description: "重点明确、节奏清楚" },
+  calm: { label: "沉稳说明", description: "语气稳定、适合复杂信息" },
+});
+
+const TRAINING_METHODS = Object.freeze({
+  free: { label: "自由训练", short: "按原方式完成训练" },
+  slot: { label: "信息槽位压缩", short: "挂住人物、任务、条件、时间和原因" },
+  meta: { label: "预测—监控—复盘", short: "先预测重点，再校准理解信心" },
+  delayed: { label: "先理解后应答", short: "先确认意图和约束，再组织回答" },
+});
 
 const INFO_LABELS = {
   person: "人物",
@@ -17,7 +34,7 @@ const INFO_LABELS = {
   result: "结果",
 };
 
-const SCENARIOS = [
+let SCENARIOS = [
   {
     id: "baseline-brief-1", baseline: true, level: 1, category: "任务交代", stage: "边听边压缩", duration: 10, units: 4, rate: 0.88, responseType: "choice",
     text: "小周，麻烦你把上午讨论的三个修改点整理一下，今天下午四点前发到项目群里，大家下班前需要确认。",
@@ -130,12 +147,22 @@ const SCENARIOS = [
 
 const defaultProfile = {
   baselineComplete: false,
+  baselineSummary: null,
   stableDuration: null,
+  methodTrends: {},
   difficulty: { level: 1, rate: 0.92, infoUnits: 4, adaptationStep: 0 },
   createdAt: new Date().toISOString(),
 };
 
-const defaultSettings = { weeklyGoal: 3, baseRate: 0.92, reminders: false, reminderTime: "20:00" };
+const defaultSettings = {
+  weeklyGoal: 3,
+  baseRate: 0.92,
+  reminders: false,
+  reminderTime: "20:00",
+  voiceProfile: "natural",
+  lastMethodId: "slot",
+  ttsEndpoint: "",
+};
 
 let db;
 let profile = { ...defaultProfile, difficulty: { ...defaultProfile.difficulty } };
@@ -143,10 +170,14 @@ let settings = { ...defaultSettings };
 let attempts = [];
 let storageMode = "indexeddb";
 let session = null;
+let pendingSession = null;
+let currentAudio = null;
+let currentAudioUrl = null;
 let currentRecording = null;
 let recordingStream = null;
 let recordingUrl = null;
 let toastTimer = null;
+const { summarizeBaseline, scoreSlotMethod, scoreMetaMethod, scoreDelayedMethod, evaluateProgress, evaluateMethodTrend } = window.TrainingCore;
 
 const $ = (id) => document.getElementById(id);
 
@@ -167,6 +198,7 @@ function reportFatalError(error) {
 }
 
 async function initialize() {
+  SCENARIOS = await loadScenarioCatalog();
   validateScenarioCatalog();
   bindNavigation();
   bindActions();
@@ -174,16 +206,17 @@ async function initialize() {
     db = await openDatabase();
     profile = mergeProfile((await getMeta(PROFILE_KEY)) || defaultProfile);
     settings = { ...defaultSettings, ...((await getMeta(SETTINGS_KEY)) || {}) };
-    attempts = await getAllAttempts();
+    attempts = (await getAllAttempts()).map(migrateAttempt);
   } catch (error) {
     console.warn("IndexedDB unavailable; using localStorage fallback.", error);
     storageMode = "localstorage";
     const fallback = loadFallbackState();
     profile = mergeProfile(fallback.profile || defaultProfile);
     settings = { ...defaultSettings, ...(fallback.settings || {}) };
-    attempts = Array.isArray(fallback.attempts) ? fallback.attempts : [];
+    attempts = Array.isArray(fallback.attempts) ? fallback.attempts.map(migrateAttempt) : [];
     showToast("已启用兼容存储，训练记录仍会保存在本机");
   }
+  profile = restoreBaselineSummary(profile, attempts);
   syncSettingsForm();
   updateStorageStatus();
   renderDashboard();
@@ -194,12 +227,42 @@ async function initialize() {
   const requestedFocus = params.get("focus");
   const requestedView = params.get("view") || location.hash.replace(/^#/, "");
   if (["chunk", "speed", "response"].includes(requestedFocus)) {
-    startSession("focus", requestedFocus);
+    requestSession("focus", requestedFocus);
   } else if (["baseline", "quick", "system"].includes(requestedMode)) {
-    startSession(requestedMode);
+    requestSession(requestedMode);
   } else if (["home", "report", "settings"].includes(requestedView)) {
     switchView(requestedView);
   }
+}
+
+async function loadScenarioCatalog() {
+  const response = await fetch(SCENARIO_CATALOG_URL, { cache: "no-cache" });
+  if (!response.ok) throw new Error(`Scenario catalog unavailable: ${response.status}`);
+  const catalog = await response.json();
+  if (catalog.version !== 2 || !Array.isArray(catalog.scenarios)) throw new Error("Invalid scenario catalog version");
+  return catalog.scenarios;
+}
+
+function migrateAttempt(value) {
+  return {
+    methodId: "free",
+    methodScore: null,
+    voiceProfile: "system",
+    audioSource: "system",
+    intentSelection: null,
+    methodEvidence: null,
+    ...value,
+  };
+}
+
+function restoreBaselineSummary(value, items) {
+  if (value.baselineSummary || !value.baselineComplete) return value;
+  const baseline = items.filter((item) => item.mode === "baseline" && item.sessionComplete !== false);
+  if (!baseline.length) return { ...value, baselineComplete: false };
+  return {
+    ...value,
+    baselineSummary: summarizeBaseline(baseline),
+  };
 }
 
 function validateScenarioCatalog() {
@@ -208,6 +271,8 @@ function validateScenarioCatalog() {
     if (!scenario.id || ids.has(scenario.id)) throw new Error(`Invalid or duplicate scenario id: ${scenario.id}`);
     ids.add(scenario.id);
     if (!scenario.text || !Array.isArray(scenario.info) || scenario.info.length !== scenario.units) throw new Error(`Invalid information units: ${scenario.id}`);
+    if (!scenario.intentCheck || !Array.isArray(scenario.intentCheck.options) || !scenario.intentCheck.options[scenario.intentCheck.correct]) throw new Error(`Invalid intent check: ${scenario.id}`);
+    if (!scenario.constraintCheck || !Array.isArray(scenario.constraintCheck.options) || !Array.isArray(scenario.constraintCheck.correct)) throw new Error(`Invalid constraint check: ${scenario.id}`);
     if (!['choice', 'order', 'voice'].includes(scenario.responseType)) throw new Error(`Invalid response type: ${scenario.id}`);
     if (scenario.responseType === 'choice' && (!Array.isArray(scenario.options) || !scenario.options[scenario.correct])) throw new Error(`Invalid choice answer: ${scenario.id}`);
     if (scenario.responseType === 'order' && (!Array.isArray(scenario.orderItems) || scenario.orderItems.length !== scenario.orderAnswer.length)) throw new Error(`Invalid order answer: ${scenario.id}`);
@@ -232,26 +297,33 @@ function bindNavigation() {
 
 function bindActions() {
   $("primaryStartButton").addEventListener("click", () => {
-    startSession(profile.baselineComplete ? "system" : "baseline");
+    requestSession(profile.baselineComplete ? "system" : "baseline");
   });
-  $("quickStartButton").addEventListener("click", () => startSession("quick"));
-  $("systemStartButton").addEventListener("click", () => startSession("system"));
+  $("quickStartButton").addEventListener("click", () => requestSession("quick"));
+  $("systemStartButton").addEventListener("click", () => requestSession("system"));
   document.querySelectorAll("[data-focus]").forEach((button) => {
-    button.addEventListener("click", () => startSession("focus", button.dataset.focus));
+    button.addEventListener("click", () => requestSession("focus", button.dataset.focus));
   });
+  $("cancelSetupButton").addEventListener("click", () => { pendingSession = null; switchView("home"); });
+  $("confirmSetupButton").addEventListener("click", confirmSessionSetup);
+  document.querySelectorAll("[data-voice-preview]").forEach((button) => button.addEventListener("click", () => previewVoice(button.dataset.voicePreview)));
   $("exitTrainingButton").addEventListener("click", exitTraining);
   $("playButton").addEventListener("click", playCurrentScenario);
   $("skipAudioButton").addEventListener("click", finishAudio);
   $("replayButton").addEventListener("click", replayCurrentScenario);
+  $("submitIntentButton").addEventListener("click", submitIntentCheck);
   $("submitAnswerButton").addEventListener("click", submitCurrentAnswer);
   $("nextExerciseButton").addEventListener("click", advanceSession);
   $("helpButton").addEventListener("click", () => $("helpDialog").showModal());
   $("closeHelpButton").addEventListener("click", () => $("helpDialog").close());
-  $("helpStartButton").addEventListener("click", () => { $("helpDialog").close(); startSession("quick"); });
+  $("helpStartButton").addEventListener("click", () => { $("helpDialog").close(); requestSession("quick"); });
   $("weeklyGoalInput").addEventListener("change", saveSettings);
   $("baseRateInput").addEventListener("change", saveSettings);
   $("reminderInput").addEventListener("change", saveSettings);
   $("reminderTimeInput").addEventListener("change", saveSettings);
+  $("voiceProfileInput").addEventListener("change", saveSettings);
+  $("ttsEndpointInput").addEventListener("change", saveSettings);
+  $("redoBaselineButton").addEventListener("click", () => requestSession("baseline"));
   $("exportButton").addEventListener("click", exportData);
   $("resetButton").addEventListener("click", resetNewData);
 }
@@ -261,17 +333,49 @@ function mergeProfile(value) {
 }
 
 function switchView(name, updateHash = false) {
-  if (!["home", "training", "report", "settings"].includes(name)) return;
+  if (!["home", "setup", "training", "report", "settings"].includes(name)) return;
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
   document.querySelectorAll(".bottom-nav [data-view-target]").forEach((item) => item.classList.toggle("active", item.dataset.viewTarget === name));
-  document.querySelector(".bottom-nav").classList.toggle("hidden", name === "training");
+  document.querySelector(".bottom-nav").classList.toggle("hidden", name === "training" || name === "setup");
   if (name === "report") renderReport();
   if (name === "settings") updateStorageStatus();
   if (updateHash && name !== "training" && location.hash !== `#${name}`) updateViewAddress(name);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function startSession(mode, focus = null) {
+function requestSession(mode, focus = null) {
+  pendingSession = { mode, focus };
+  const baseline = mode === "baseline";
+  $("methodSetupSection").classList.toggle("hidden", baseline);
+  $("setupEyebrow").textContent = baseline ? "约 8 分钟" : mode === "quick" ? "约 5 分钟" : mode === "system" ? "约 20 分钟" : "专项训练";
+  $("setupTitle").textContent = baseline ? "开始首次能力基线" : "选择本次聆听方法";
+  $("setupDescription").textContent = baseline ? "基线不使用训练提示，以便后续成绩有一致的比较起点。" : "训练中会按所选方法给出简短步骤，并单独计算方法执行分。";
+  const recommendation = focus === "response" ? "delayed" : focus === "speed" ? "meta" : focus === "chunk" ? "slot" : settings.lastMethodId;
+  const method = baseline ? "free" : (TRAINING_METHODS[recommendation] ? recommendation : "slot");
+  const methodInput = document.querySelector(`input[name="trainingMethod"][value="${method}"]`);
+  if (methodInput) methodInput.checked = true;
+  const voiceInput = document.querySelector(`input[name="voiceProfile"][value="${settings.voiceProfile}"]`) || document.querySelector('input[name="voiceProfile"]');
+  if (voiceInput) voiceInput.checked = true;
+  $("methodRecommendation").textContent = `推荐：${TRAINING_METHODS[method].label}`;
+  $("voiceSetupStatus").textContent = settings.ttsEndpoint ? "将优先使用自然云语音；不可用时自动切换设备普通话。" : "尚未配置云语音代理，本次将使用设备普通话。";
+  switchView("setup");
+}
+
+async function confirmSessionSetup() {
+  if (!pendingSession) return;
+  const methodId = pendingSession.mode === "baseline" ? "free" : document.querySelector('input[name="trainingMethod"]:checked')?.value;
+  const voiceProfile = document.querySelector('input[name="voiceProfile"]:checked')?.value;
+  if (!methodId || !voiceProfile) return showToast("请先选择训练方法和工作语音");
+  settings.voiceProfile = voiceProfile;
+  if (pendingSession.mode !== "baseline") settings.lastMethodId = methodId;
+  await persistSettings();
+  $("voiceProfileInput").value = voiceProfile;
+  const next = pendingSession;
+  pendingSession = null;
+  startSession(next.mode, next.focus, methodId, voiceProfile);
+}
+
+function startSession(mode, focus = null, methodId = "free", voiceProfile = settings.voiceProfile) {
   stopSpeech();
   cleanupRecording();
   let queue;
@@ -283,7 +387,7 @@ function startSession(mode, focus = null) {
     showToast("当前训练暂时没有可用题目");
     return;
   }
-  session = { id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, mode, focus, queue, index: 0, results: [], replayCount: 0, audioFinishedAt: null, firstActionAt: null, selected: null, order: [], checkedUnits: [], voiceSelfChecking: false };
+  session = { id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, mode, focus, methodId, voiceProfile, audioSource: "system", queue, index: 0, results: [], replayCount: 0, audioFinishedAt: null, firstActionAt: null, selected: null, order: [], checkedUnits: [], voiceSelfChecking: false, intentSelection: null, methodEvidence: {} };
   switchView("training");
   renderExercise();
 }
@@ -336,6 +440,8 @@ function renderExercise() {
   session.order = [];
   session.checkedUnits = [];
   session.voiceSelfChecking = false;
+  session.intentSelection = null;
+  session.methodEvidence = {};
   setStage("exerciseReady");
   const focusLabels = { chunk: "边听边压缩", speed: "渐进式提速", response: "理解与应答" };
   $("sessionLabel").textContent = session.mode === "baseline" ? "基线测试" : session.mode === "quick" ? "碎片训练" : session.mode === "focus" ? focusLabels[session.focus] : "系统训练";
@@ -350,6 +456,29 @@ function renderExercise() {
   $("audioStatus").textContent = "";
   $("skipAudioButton").classList.add("hidden");
   $("playButton").disabled = false;
+  renderPreListenMethod(scenario);
+}
+
+function renderPreListenMethod(scenario) {
+  const panel = $("preListenMethodPanel");
+  panel.innerHTML = "";
+  if (session.mode === "baseline" || session.methodId === "free") return panel.classList.add("hidden");
+  panel.classList.remove("hidden");
+  if (session.methodId === "slot") {
+    panel.innerHTML = "<b>本题方法：信息槽位压缩</b><p>听的时候只更新五个位置：人物—任务—条件—时间—原因。</p>";
+  } else if (session.methodId === "delayed") {
+    panel.innerHTML = "<b>本题方法：先理解后应答</b><p>听完前不准备答案；结束后先确认核心意图和关键约束。</p>";
+  } else {
+    panel.innerHTML = `<b>本题方法：预测—监控—复盘</b><p>根据“${escapeHtml(scenario.category)}”预判两个最值得留意的信息类型。</p><div class="method-chip-grid">${SLOT_TYPES.map((type) => `<label><input type="checkbox" value="${type}"> ${INFO_LABELS[type]}</label>`).join("")}</div><small>请选择两个，才可播放。</small>`;
+    const inputs = [...panel.querySelectorAll("input")];
+    inputs.forEach((input) => input.addEventListener("change", () => {
+      const selected = inputs.filter((item) => item.checked);
+      if (selected.length > 2) input.checked = false;
+      session.methodEvidence.predictedTypes = inputs.filter((item) => item.checked).map((item) => item.value);
+      $("playButton").disabled = session.methodEvidence.predictedTypes.length !== 2;
+    }));
+    $("playButton").disabled = true;
+  }
 }
 
 function stagePrompt(stage) {
@@ -371,23 +500,49 @@ function effectiveRate(scenario) {
 
 function playCurrentScenario() {
   if (!session || !currentScenario()) return;
+  if (session.methodId === "meta" && (session.methodEvidence.predictedTypes || []).length !== 2) return showToast("请先预测两个重点信息类型");
   session.replayCount += 1;
   speakScenario(currentScenario(), false);
 }
 
 function replayCurrentScenario() {
   session.replayCount += 1;
-  speakScenario(currentScenario(), true);
+  speakScenario(currentScenario(), false);
 }
 
-function speakScenario(scenario, keepAnswerVisible) {
+async function speakScenario(scenario, keepAnswerVisible) {
   stopSpeech();
   markFirstAction();
   $("playButton").disabled = true;
   $("skipAudioButton").classList.remove("hidden");
   $("audioStatus").textContent = "正在播放，请持续更新脑中的信息结构……";
-  if (!keepAnswerVisible) setStage("exerciseReady");
+  setStage("exerciseReady");
+  $("preListenMethodPanel").querySelectorAll("input").forEach((input) => { input.disabled = true; });
 
+  if (settings.ttsEndpoint && VOICE_PROFILES[session.voiceProfile]) {
+    try {
+      $("audioStatus").textContent = "正在准备自然工作语音……";
+      const { url, source } = await fetchVoiceAudio(scenario.id, session.voiceProfile);
+      session.audioSource = source;
+      currentAudioUrl = url;
+      currentAudio = new Audio(url);
+      currentAudio.playbackRate = effectiveRate(scenario);
+      currentAudio.onended = finishAudio;
+      currentAudio.onerror = () => speakWithDevice(scenario);
+      await currentAudio.play();
+      $("audioStatus").textContent = source === "cache" ? "正在播放缓存的自然工作语音……" : "正在播放自然工作语音……";
+      return;
+    } catch (error) {
+      console.warn("Cloud speech unavailable; using device voice.", error);
+    }
+  }
+  speakWithDevice(scenario);
+}
+
+function speakWithDevice(scenario) {
+  if (!session || currentScenario()?.id !== scenario.id) return;
+  session.audioSource = "system";
+  $("audioStatus").textContent = "设备语音 · 正在播放";
   if (!("speechSynthesis" in window)) {
     $("audioStatus").textContent = "当前浏览器无法朗读，请更换 Safari 或 Chrome。";
     $("playButton").disabled = false;
@@ -402,10 +557,7 @@ function speakScenario(scenario, keepAnswerVisible) {
   if (chineseVoice) utterance.voice = chineseVoice;
   utterance.onend = () => {
     $("playButton").disabled = false;
-    if (keepAnswerVisible) {
-      $("audioStatus").textContent = "重听完成";
-      session.audioFinishedAt = performance.now();
-    } else finishAudio();
+    finishAudio();
   };
   utterance.onerror = () => {
     $("audioStatus").textContent = "朗读未完成，可重新播放或直接开始作答。";
@@ -414,10 +566,106 @@ function speakScenario(scenario, keepAnswerVisible) {
   speechSynthesis.speak(utterance);
 }
 
+async function fetchVoiceAudio(scenarioId, voiceProfile) {
+  const endpoint = settings.ttsEndpoint.replace(/\/$/, "");
+  const url = `${endpoint}/v1/tts/${encodeURIComponent(scenarioId)}?profile=${encodeURIComponent(voiceProfile)}&v=${TTS_VERSION}`;
+  const cache = "caches" in window ? await caches.open(AUDIO_CACHE_NAME) : null;
+  const cached = cache ? await cache.match(url) : null;
+  if (cached) return { url: URL.createObjectURL(await cached.blob()), source: "cache" };
+  const response = await fetch(url, { mode: "cors" });
+  if (!response.ok || !String(response.headers.get("content-type")).includes("audio")) throw new Error(`TTS ${response.status}`);
+  if (cache) await cache.put(url, response.clone());
+  return { url: URL.createObjectURL(await response.blob()), source: "azure" };
+}
+
+async function previewVoice(profileId) {
+  stopSpeech();
+  const button = document.querySelector(`[data-voice-preview="${profileId}"]`);
+  if (button) button.disabled = true;
+  $("voiceSetupStatus").textContent = `正在准备“${VOICE_PROFILES[profileId].label}”试听……`;
+  const previewScenario = SCENARIOS.find((item) => item.id === "task-handoff-1") || SCENARIOS[0];
+  try {
+    if (!settings.ttsEndpoint) throw new Error("proxy not configured");
+    const { url, source } = await fetchVoiceAudio(previewScenario.id, profileId);
+    currentAudioUrl = url;
+    currentAudio = new Audio(url);
+    currentAudio.onended = () => { if (button) button.disabled = false; };
+    await currentAudio.play();
+    $("voiceSetupStatus").textContent = source === "cache" ? "试听来自本地缓存。" : "试听来自安全语音代理。";
+  } catch (error) {
+    const utterance = new SpeechSynthesisUtterance(previewScenario.text);
+    utterance.lang = "zh-CN";
+    utterance.rate = settings.baseRate;
+    utterance.onend = () => { if (button) button.disabled = false; };
+    speechSynthesis.speak(utterance);
+    $("voiceSetupStatus").textContent = "云语音不可用，当前试听为设备语音。";
+  } finally {
+    setTimeout(() => { if (button) button.disabled = false; }, 12000);
+  }
+}
+
 function finishAudio() {
   stopSpeech();
   session.audioFinishedAt = performance.now();
   session.firstActionAt = null;
+  renderIntentStage();
+}
+
+function renderIntentStage() {
+  const scenario = currentScenario();
+  setStage("exerciseIntent");
+  $("intentPrompt").textContent = scenario.intentCheck.prompt || "这段话的核心意图是什么？";
+  $("intentOptions").innerHTML = "";
+  scenario.intentCheck.options.forEach((option, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "option-button";
+    button.textContent = option;
+    button.addEventListener("click", () => {
+      markFirstAction();
+      session.intentSelection = index;
+      $("intentOptions").querySelectorAll("button").forEach((item, itemIndex) => item.classList.toggle("selected", itemIndex === index));
+      updateIntentSubmitState();
+    });
+    $("intentOptions").appendChild(button);
+  });
+  renderMethodCheckpoint(scenario);
+  updateIntentSubmitState();
+}
+
+function renderMethodCheckpoint(scenario) {
+  const panel = $("methodCheckpoint");
+  panel.innerHTML = "";
+  if (session.methodId === "slot") {
+    panel.innerHTML = `<h3>你刚才捕捉到了哪些槽位？</h3><div class="method-chip-grid">${SLOT_TYPES.map((type) => `<label><input type="checkbox" value="${type}"> ${INFO_LABELS[type]}</label>`).join("")}</div>`;
+    panel.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => {
+      session.methodEvidence.capturedSlots = [...panel.querySelectorAll("input:checked")].map((item) => item.value);
+      updateIntentSubmitState();
+    }));
+  } else if (session.methodId === "meta") {
+    panel.innerHTML = `<h3>监控与复盘</h3><label class="field-row">理解信心（1–5）<input id="confidenceInput" type="range" min="1" max="5" value="3"><b id="confidenceValue">3</b></label><label class="field-row">最不确定的信息<select id="uncertainTypeInput"><option value="">请选择</option>${Object.entries(INFO_LABELS).map(([type, label]) => `<option value="${type}">${label}</option>`).join("")}</select></label>`;
+    $("confidenceInput").addEventListener("input", () => { $("confidenceValue").textContent = $("confidenceInput").value; session.methodEvidence.confidence = Number($("confidenceInput").value); updateIntentSubmitState(); });
+    $("uncertainTypeInput").addEventListener("change", () => { session.methodEvidence.uncertainType = $("uncertainTypeInput").value; session.methodEvidence.reviewed = Boolean($("uncertainTypeInput").value); updateIntentSubmitState(); });
+    session.methodEvidence.confidence = 3;
+  } else if (session.methodId === "delayed") {
+    panel.innerHTML = `<h3>${escapeHtml(scenario.constraintCheck.prompt)}</h3><div class="method-chip-grid constraints">${scenario.constraintCheck.options.map((option, index) => `<label><input type="checkbox" value="${index}"> ${escapeHtml(option)}</label>`).join("")}</div>`;
+    panel.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => {
+      session.methodEvidence.constraintSelection = [...panel.querySelectorAll("input:checked")].map((item) => Number(item.value));
+      updateIntentSubmitState();
+    }));
+  }
+}
+
+function updateIntentSubmitState() {
+  let ready = Number.isInteger(session.intentSelection);
+  if (session.methodId === "slot") ready = ready && (session.methodEvidence.capturedSlots || []).length > 0;
+  if (session.methodId === "meta") ready = ready && Boolean(session.methodEvidence.uncertainType);
+  if (session.methodId === "delayed") ready = ready && (session.methodEvidence.constraintSelection || []).length > 0;
+  $("submitIntentButton").disabled = !ready;
+}
+
+function submitIntentCheck() {
+  session.intentScore = session.intentSelection === currentScenario().intentCheck.correct ? 1 : 0;
   renderAnswerStage();
 }
 
@@ -536,9 +784,11 @@ function submitCurrentAnswer() {
   if (currentRecording?.state === "recording") currentRecording.stop();
   if (scenario.responseType === "voice" && !session.voiceSelfChecking) return renderSelfCheck(scenario);
   if (scenario.responseType === "voice") {
-    return finalizeAttempt({ detailScore: session.checkedUnits.length / scenario.info.length, intentScore: session.checkedUnits.length >= Math.ceil(scenario.info.length / 2) ? 1 : 0, captured: session.checkedUnits });
+    return finalizeAttempt({ detailScore: session.checkedUnits.length / scenario.info.length, intentScore: session.intentScore, captured: session.checkedUnits });
   }
-  finalizeAttempt(scoreObjective(scenario));
+  const scores = scoreObjective(scenario);
+  scores.intentScore = session.intentScore;
+  finalizeAttempt(scores);
 }
 
 function renderSelfCheck(scenario) {
@@ -572,8 +822,24 @@ function scoreObjective(scenario) {
   return { detailScore: score, intentScore: score >= 0.5 ? 1 : 0, captured: scenario.info.map((_, index) => index).slice(0, Math.round(scenario.info.length * score)) };
 }
 
+function calculateMethodScore(scenario, detailScore) {
+  const actualTypes = [...new Set(scenario.info.map((unit) => unit.type).filter((type) => SLOT_TYPES.includes(type)))];
+  if (session.methodId === "slot") return scoreSlotMethod(session.methodEvidence.capturedSlots || [], actualTypes);
+  if (session.methodId === "meta") return scoreMetaMethod({
+    predictedTypes: session.methodEvidence.predictedTypes || [],
+    actualTypes,
+    confidence: session.methodEvidence.confidence,
+    detailScore,
+    reviewed: session.methodEvidence.reviewed,
+  });
+  if (session.methodId === "delayed") return scoreDelayedMethod(session.intentScore, session.methodEvidence.constraintSelection || [], scenario.constraintCheck.correct);
+  return null;
+}
+
 async function finalizeAttempt(scores) {
   const scenario = currentScenario();
+  const detailScore = clampScore(scores.detailScore);
+  const methodScore = calculateMethodScore(scenario, detailScore);
   const attempt = {
     id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
     scenarioId: scenario.id,
@@ -585,8 +851,14 @@ async function finalizeAttempt(scores) {
     duration: scenario.duration,
     units: scenario.units,
     rate: effectiveRate(scenario),
-    detailScore: clampScore(scores.detailScore),
+    detailScore,
     intentScore: clampScore(scores.intentScore),
+    methodId: session.methodId,
+    methodScore,
+    voiceProfile: session.voiceProfile,
+    audioSource: session.audioSource,
+    intentSelection: session.intentSelection,
+    methodEvidence: typeof structuredClone === "function" ? structuredClone(session.methodEvidence) : JSON.parse(JSON.stringify(session.methodEvidence)),
     replayCount: Math.max(0, session.replayCount - 1),
     responseLatency: session.firstActionAt && session.audioFinishedAt ? Math.max(0, Math.round(session.firstActionAt - session.audioFinishedAt)) : null,
     capturedTypes: scores.captured.map((index) => scenario.info[index]?.type).filter(Boolean),
@@ -605,7 +877,8 @@ function renderFeedback(attempt, captured) {
   setStage("exerciseFeedback");
   const percent = Math.round(attempt.detailScore * 100);
   $("resultScore").textContent = `${percent}%`;
-  $("resultRing").style.setProperty("--score", `${percent}%`);
+  $("resultIntentScore").textContent = `${Math.round(attempt.intentScore * 100)}%`;
+  $("resultMethodScore").textContent = Number.isFinite(attempt.methodScore) ? `${Math.round(attempt.methodScore * 100)}%` : "—";
   $("feedbackTitle").textContent = percent >= 80 ? "信息结构保持得很完整" : percent >= 60 ? "核心框架已经形成" : "这次信息还堆在一起";
   $("feedbackMessage").textContent = percent >= 80 ? "继续保持边听边更新，不需要刻意追求更快。" : percent >= 60 ? "下一次重点挂住条件和时间，不要逐字回放。" : "下一题先只抓人物、任务和截止时间，减少脑中的原句负担。";
   $("feedbackTranscript").textContent = scenario.text;
@@ -629,6 +902,7 @@ async function completeSession() {
     profile.stableDuration = passed.length ? Math.max(...passed.map((item) => item.duration)) : 10;
     profile.difficulty.level = profile.stableDuration >= 30 ? 3 : profile.stableDuration >= 18 ? 2 : 1;
     profile.difficulty.infoUnits = profile.difficulty.level + 3;
+    profile.baselineSummary = summarizeBaseline(results);
     showToast(`基线完成：当前稳定语段约 ${profile.stableDuration} 秒`);
   } else {
     adaptDifficulty();
@@ -696,7 +970,34 @@ function renderReport() {
   $("reportLatency").textContent = latency === null ? "—" : `${(latency / 1000).toFixed(1)} 秒`;
   renderWeakTypes(week);
   renderHistory();
+  renderMethodProgress();
   renderRecommendation(week, recall);
+}
+
+function renderMethodProgress() {
+  const grid = $("methodProgressGrid");
+  const baseline = profile.baselineSummary;
+  if (!baseline) {
+    grid.innerHTML = '<article class="method-progress-card empty"><b>需要新的基线</b><p>完成基线测试后，才能比较不同方法与首次能力起点的差异。</p></article>';
+    return;
+  }
+  const labels = { improved: "明显进步", stable: "保持稳定", reinforce: "需要巩固", collecting: "数据积累中" };
+  grid.innerHTML = ["slot", "meta", "delayed"].map((methodId) => {
+    const all = attempts.filter((item) => item.methodId === methodId && item.sessionComplete !== false);
+    const comparable = all.filter((item) => item.voiceProfile === baseline.voiceProfile);
+    const progress = evaluateProgress(baseline, comparable.slice(-20));
+    const trend = evaluateMethodTrend(all);
+    const deltas = progress.status === "collecting"
+      ? `<span>同音色 ${progress.count} / 5 题</span>`
+      : `<span>信息 ${formatDelta(progress.detailDelta)} 分</span><span>意图 ${formatDelta(progress.intentDelta)} 分</span><span>稳定长度 ${formatDelta(progress.durationDelta)} 秒</span>`;
+    const methodTrend = trend.count < 10 ? `方法执行 ${trend.count} / 10 题` : `方法执行前后变化 ${formatDelta(trend.delta)} 分`;
+    return `<article class="method-progress-card ${progress.status}"><small>${TRAINING_METHODS[methodId].label}</small><strong>${labels[progress.status]}</strong><div>${deltas}</div><p>${methodTrend}</p></article>`;
+  }).join("");
+}
+
+function formatDelta(value) {
+  const number = Number(value) || 0;
+  return `${number > 0 ? "+" : ""}${number}`;
 }
 
 function renderWeakTypes(items) {
@@ -725,7 +1026,7 @@ function renderRecommendation(week, recall) {
 
 function attemptsThisWeek() {
   const start = startOfWeek(new Date());
-  return attempts.filter((item) => new Date(item.completedAt) >= start);
+  return attempts.filter((item) => item.sessionComplete !== false && new Date(item.completedAt) >= start);
 }
 
 function uniqueSessionsThisWeek() {
@@ -743,6 +1044,8 @@ function syncSettingsForm() {
   $("baseRateInput").value = String(settings.baseRate);
   $("reminderInput").checked = Boolean(settings.reminders);
   $("reminderTimeInput").value = settings.reminderTime || "20:00";
+  $("voiceProfileInput").value = settings.voiceProfile || "natural";
+  $("ttsEndpointInput").value = settings.ttsEndpoint || "";
 }
 
 async function saveSettings() {
@@ -750,6 +1053,8 @@ async function saveSettings() {
   settings.baseRate = Number($("baseRateInput").value);
   settings.reminders = $("reminderInput").checked;
   settings.reminderTime = $("reminderTimeInput").value || "20:00";
+  settings.voiceProfile = $("voiceProfileInput").value || "natural";
+  settings.ttsEndpoint = $("ttsEndpointInput").value.trim().replace(/\/$/, "");
   await persistSettings();
   if (window.webkit?.messageHandlers?.scheduleReminder) {
     window.webkit.messageHandlers.scheduleReminder.postMessage({
@@ -817,6 +1122,16 @@ function markFirstAction() {
 
 function stopSpeech() {
   if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.removeAttribute("src");
+    currentAudio.load();
+    currentAudio = null;
+  }
+  if (currentAudioUrl) {
+    URL.revokeObjectURL(currentAudioUrl);
+    currentAudioUrl = null;
+  }
 }
 
 function cleanupRecording() {

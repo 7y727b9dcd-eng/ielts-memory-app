@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=12" />
+    <link rel="stylesheet" href="./styles.css?v=14" />
   </head>
   <body>
     <div class="app-shell">
@@ -64,6 +64,34 @@
           </section>
         </section>
 
+        <section class="view" id="setupView">
+          <div class="page-heading setup-heading">
+            <button class="back-button" id="cancelSetupButton">← 返回</button>
+            <p class="eyebrow" id="setupEyebrow">训练准备</p>
+            <h1 id="setupTitle">选择本次训练方式</h1>
+            <p id="setupDescription">先确定听取方法和工作语音，再开始训练。</p>
+          </div>
+          <section id="methodSetupSection" class="setup-section">
+            <div class="section-heading"><div><p class="eyebrow">聆听方法</p><h2>这次用哪种方法接收信息？</h2></div><span class="recommend-badge" id="methodRecommendation">推荐</span></div>
+            <div class="setup-grid method-choice-grid">
+              <label class="setup-choice"><input type="radio" name="trainingMethod" value="slot" /><b>信息槽位压缩</b><span>挂住人物、任务、条件、时间和原因</span><small>方法执行分：槽位捕捉准确率</small></label>
+              <label class="setup-choice"><input type="radio" name="trainingMethod" value="meta" /><b>预测—监控—复盘</b><span>先预测重点，再校准理解信心</span><small>方法执行分：预测与信心校准</small></label>
+              <label class="setup-choice"><input type="radio" name="trainingMethod" value="delayed" /><b>先理解后应答</b><span>先确认意图和约束，再组织回答</span><small>方法执行分：意图与约束准确率</small></label>
+              <label class="setup-choice"><input type="radio" name="trainingMethod" value="free" /><b>自由训练</b><span>保持原有训练流程，不显示方法提示</span><small>方法执行分：不计分</small></label>
+            </div>
+          </section>
+          <section class="setup-section">
+            <div class="section-heading"><div><p class="eyebrow">普通话工作语音</p><h2>选择一种自然语气</h2></div><span class="ai-voice-label">AI 生成语音</span></div>
+            <div class="setup-grid voice-choice-grid">
+              <div class="voice-choice"><label><input type="radio" name="voiceProfile" value="natural" /><b>自然交流</b><span>像同事面对面交代工作</span></label><button type="button" data-voice-preview="natural">试听</button></div>
+              <div class="voice-choice"><label><input type="radio" name="voiceProfile" value="briefing" /><b>清晰汇报</b><span>重点明确、节奏清楚</span></label><button type="button" data-voice-preview="briefing">试听</button></div>
+              <div class="voice-choice"><label><input type="radio" name="voiceProfile" value="calm" /><b>沉稳说明</b><span>语气稳定、适合复杂信息</span></label><button type="button" data-voice-preview="calm">试听</button></div>
+            </div>
+            <p class="setup-status" id="voiceSetupStatus">云语音未配置时会自动使用设备普通话。</p>
+          </section>
+          <button class="primary-button setup-start" id="confirmSetupButton">开始训练</button>
+        </section>
+
         <section class="view" id="trainingView">
           <div class="training-header">
             <button class="back-button" id="exitTrainingButton">← 退出</button>
@@ -75,6 +103,7 @@
               <p class="eyebrow" id="exerciseStageLabel">边听边压缩</p>
               <h1 id="exercisePrompt">准备好后，完整听一遍</h1>
               <p class="stage-help">先不要想回答。尝试在脑中形成“谁—任务—条件—时间—原因”。</p>
+              <div id="preListenMethodPanel" class="prelisten-panel"></div>
               <button class="audio-button" id="playButton"><span class="play-icon">▶</span><b>播放工作对话</b><small id="playRateLabel">当前语速 0.9×</small></button>
               <button class="text-button hidden" id="skipAudioButton">音频已结束，开始作答</button>
               <p class="status-line" id="audioStatus" aria-live="polite"></p>
@@ -88,8 +117,19 @@
                 <button class="primary-button" id="submitAnswerButton">提交答案</button>
               </div>
             </div>
+            <div id="exerciseIntent" class="exercise-stage">
+              <p class="eyebrow">先确认理解</p>
+              <h2 id="intentPrompt">这段话的核心意图是什么？</h2>
+              <div id="intentOptions" class="option-grid"></div>
+              <div id="methodCheckpoint" class="method-checkpoint"></div>
+              <button class="primary-button" id="submitIntentButton" disabled>确认后继续回答</button>
+            </div>
             <div id="exerciseFeedback" class="exercise-stage">
-              <div class="result-ring" id="resultRing"><strong id="resultScore">0%</strong><span>细节召回</span></div>
+              <div class="score-trio compact-score-trio">
+                <div><strong id="resultScore">0%</strong><span>信息准确</span></div>
+                <div><strong id="resultIntentScore">0%</strong><span>核心意图</span></div>
+                <div><strong id="resultMethodScore">—</strong><span>方法执行</span></div>
+              </div>
               <p class="eyebrow">本题复盘</p>
               <h2 id="feedbackTitle">你抓住了核心信息</h2>
               <p id="feedbackMessage"></p>
@@ -116,6 +156,11 @@
             <article class="report-card"><h3>容易遗漏的信息</h3><div id="weakTypeList" class="weak-list"></div></article>
             <article class="report-card"><h3>最近训练</h3><div id="recentHistory" class="history-list"></div></article>
           </section>
+          <section class="method-progress-section">
+            <div class="section-heading"><div><p class="eyebrow">相对首次基线</p><h2>不同方法带来的训练内变化</h2></div><button class="text-button" id="redoBaselineButton">重新测试基线</button></div>
+            <p class="progress-disclaimer">这里只比较训练内成绩，不等同于无提示真实场景中的迁移证明。主要结论只使用与基线相同音色的记录。</p>
+            <div class="method-progress-grid" id="methodProgressGrid"></div>
+          </section>
           <section class="recommendation" id="recommendation"><span>下周建议</span><p>完成基线测试后，这里会给出针对性训练建议。</p></section>
         </section>
 
@@ -124,6 +169,8 @@
           <section class="settings-card">
             <label><span><b>每周系统训练目标</b><small>默认每周三次</small></span><select id="weeklyGoalInput"><option value="2">2 次</option><option value="3">3 次</option><option value="4">4 次</option><option value="5">5 次</option></select></label>
             <label><span><b>设备朗读语速</b><small>自适应训练会在此基础上调整</small></span><select id="baseRateInput"><option value="0.85">舒缓</option><option value="0.92">自然偏慢</option><option value="1">自然</option></select></label>
+            <label><span><b>默认工作语音</b><small>每次训练开始前仍可更换</small></span><select id="voiceProfileInput"><option value="natural">自然交流</option><option value="briefing">清晰汇报</option><option value="calm">沉稳说明</option></select></label>
+            <label><span><b>语音代理地址</b><small>Cloudflare Worker HTTPS 地址；留空时使用设备语音</small></span><input id="ttsEndpointInput" type="url" inputmode="url" placeholder="https://example.workers.dev" /></label>
             <label class="toggle-row"><span><b>训练提醒</b><small>按每周目标分散安排本地通知</small></span><input id="reminderInput" type="checkbox" /></label>
             <label><span><b>提醒时间</b><small>仅在开启训练提醒后生效</small></span><input id="reminderTimeInput" type="time" value="20:00" /></label>
           </section>
@@ -153,6 +200,7 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=12" charset="UTF-8"></script>
+    <script src="./training-core.js?v=14" charset="UTF-8"></script>
+    <script src="./app.js?v=14" charset="UTF-8"></script>
   </body>
 </html>
