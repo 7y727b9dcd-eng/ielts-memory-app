@@ -25,7 +25,7 @@ function createElement(id) {
   };
 }
 
-function createAppRuntime({ fetchImpl, includeSpeechSynthesis = false } = {}) {
+function createAppRuntime({ fetchImpl, includeSpeechSynthesis = false, trainingCore = {}, voiceCore = {} } = {}) {
   const elements = new Map();
   const previewButton = { disabled: false, dataset: { speakerPreview: "lin_xiao" } };
   const document = {
@@ -48,12 +48,17 @@ function createAppRuntime({ fetchImpl, includeSpeechSynthesis = false } = {}) {
       scoreSlotMethod() {},
       scoreMetaMethod() {},
       scoreDelayedMethod() {},
-      evaluateProgress() {},
-      evaluateMethodTrend() {},
+      evaluateProgress(_baseline, items) { return { status: "collecting", count: items.length }; },
+      evaluateMethodTrend(items) { return { count: items.length }; },
+      ...trainingCore,
     },
     VoiceCore: {
       migrateVoiceRecord(value) { return value; },
+      isVoiceComparable(baseline, attempt) {
+        return Boolean(baseline && attempt && baseline.speakerId === attempt.speakerId && baseline.audioProvider === attempt.audioProvider && Number(baseline.voiceVersion) === Number(attempt.voiceVersion));
+      },
       LEGACY_SPEAKERS: { natural: "lin_xiao", briefing: "chen_yu", calm: "su_ning", system: "system" },
+      ...voiceCore,
     },
     addEventListener() {},
   };
@@ -96,7 +101,12 @@ globalThis.__speakerRuntime = {
   renderSpeakerChoices,
   updateSpeakerSelectOptions,
   checkVoiceService,
-  previewSpeaker
+  previewSpeaker,
+  renderMethodProgress,
+  setProgressState(baselineSummary, nextAttempts) {
+    profile = { ...profile, baselineSummary };
+    attempts = nextAttempts;
+  }
 };`, context);
   return {
     context,
@@ -215,4 +225,25 @@ test("runtime preview immediately restores the button when no speech synthesis f
 
   assert.equal(runtime.previewButton.disabled, false);
   assert.match(runtime.getElement("voiceSetupStatus").textContent, /无法试用设备语音/);
+});
+
+test("runtime method progress renders actual-source filtering and excluded counts", () => {
+  const runtime = createAppRuntime();
+  runtime.context.__speakerRuntime.setProgressState(
+    { detail: 0.7, intent: 1, stableDuration: 20, speakerId: "system", audioProvider: "system", voiceVersion: 2 },
+    [
+      { methodId: "slot", sessionComplete: true, detailScore: 0.8, intentScore: 1, duration: 20, speakerId: "system", audioProvider: "system", voiceVersion: 2 },
+      { methodId: "slot", sessionComplete: true, detailScore: 0.9, intentScore: 1, duration: 25, speakerId: "lin_xiao", audioProvider: "azure", voiceVersion: 2 },
+      { methodId: "meta", sessionComplete: true, detailScore: 0.8, intentScore: 1, duration: 20, speakerId: "system", audioProvider: "system", voiceVersion: 1 },
+      { methodId: "delayed", sessionComplete: true, detailScore: 0.8, intentScore: 1, duration: 20, speakerId: "system", audioProvider: "system", voiceVersion: 2 },
+    ],
+  );
+
+  runtime.context.__speakerRuntime.renderMethodProgress();
+
+  const html = runtime.getElement("methodProgressGrid").innerHTML;
+  assert.match(html, /说话人：设备语音 · 来源：设备语音/);
+  assert.match(html, /信息槽位压缩[\s\S]*可比 1 \/ 5 题[\s\S]*另有 1 题因人物或实际音源不同未纳入结论/);
+  assert.match(html, /预测—监控—复盘[\s\S]*可比 0 \/ 5 题[\s\S]*另有 1 题因人物或实际音源不同未纳入结论/);
+  assert.match(html, /先理解后应答[\s\S]*可比 1 \/ 5 题[\s\S]*另有 0 题因人物或实际音源不同未纳入结论/);
 });

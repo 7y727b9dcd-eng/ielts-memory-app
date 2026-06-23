@@ -3,29 +3,28 @@
 ## Status
 
 - Completed locally.
-- Task 4 scope implemented with baseline migration and accurate progress filtering.
+- Task 4 scope implemented with baseline migration, actual-source progress filtering, and a direct UI regression test for excluded-count rendering.
 
-## Commit
+## Commits
 
-- `fix: compare progress using actual audio source`
+- `6a23654 fix: compare progress using actual audio source`
+- Follow-up commit: `test: cover actual-source progress exclusions`
 
 ## Exact tests and results
 
-1. `node --test tests/training-core.test.js tests/voice-core.test.js`
+1. `node --test tests/speaker-ui-contract.test.js tests/training-core.test.js tests/voice-core.test.js`
    - Result: PASS
-   - Summary: 8 tests passed, 0 failed
+   - Summary: 20 tests passed, 0 failed
 
 2. `node --test tests/*.test.js worker/test/*.test.mjs`
    - Result: PASS
-   - Summary: 32 tests passed, 0 failed
+   - Summary: 33 tests passed, 0 failed
 
 3. `node --check app.js`
    - Result: PASS
-   - Verification note: the shell did not have a `node` executable on PATH, so the same file was syntax-parsed with the available Node runtime via `vm.Script` and passed.
 
 4. `node --check training-core.js`
    - Result: PASS
-   - Verification note: the shell did not have a `node` executable on PATH, so the same file was syntax-parsed with the available Node runtime via `vm.Script` and passed.
 
 ## Files changed
 
@@ -33,32 +32,36 @@
 - `C:\个人APP\app.js`
 - `C:\个人APP\tests\training-core.test.js`
 - `C:\个人APP\tests\voice-core.test.js`
+- `C:\个人APP\tests\speaker-ui-contract.test.js`
 - `C:\个人APP\.superpowers\sdd\task-4-report.md`
+- `C:\个人APP\.superpowers\sdd\progress.md`
 
 ## What changed
 
-- Updated `summarizeBaseline()` to store `speakerId`, `audioProvider`, and `voiceVersion` from the actual attempt source fields instead of the legacy `voiceProfile` label.
-- Kept baseline scoring math, thresholds, and trend logic unchanged.
-- Switched progress comparisons to `VoiceCore.isVoiceComparable(baseline, attempt)` so only truly comparable attempts contribute to the main conclusion.
-- Added the exclusion copy for each method:
-  - `另有 N 题因人物或实际音源不同未纳入结论`
-- Added baseline source labeling in the report so system voice shows as `设备语音`.
-- Kept legacy and ambiguous records readable through migration, while preventing them from silently joining v2 cloud comparisons.
-- Extended unit coverage for:
-  - exact system baseline fields
-  - undefined legacy source migration
-  - cache delivery migration and comparability
-  - version mismatch comparison rejection
+- `summarizeBaseline()` now stores `speakerId`, `audioProvider`, and `voiceVersion` from actual attempt source fields.
+- Loaded attempts continue to pass through `VoiceCore.migrateVoiceRecord()` while preserving legacy fields for history/export.
+- Main method progress uses `VoiceCore.isVoiceComparable(baseline, attempt)` before calculating the conclusion.
+- Azure cache and network attempts remain comparable because both use `audioProvider="azure"` when speaker and version match.
+- Each method card reports excluded attempts with: `另有 N 题因人物或实际音源不同未纳入结论`.
+- Baseline source labeling displays `system` as `设备语音`.
+- Old ambiguous records remain readable but do not silently enter v2 cloud comparisons.
+- Existing progress thresholds and method-trend calculations were preserved.
+
+## Test coverage added
+
+- Exact baseline fields for `{ speakerId: "system", audioProvider: "system", voiceVersion: 2 }`.
+- Legacy undefined-source migration remains readable but ambiguous.
+- Cache delivery on a v2 Azure record remains comparable by provider.
+- Version mismatch is rejected by `isVoiceComparable()`.
+- Runtime `renderMethodProgress()` test verifies comparable counts, excluded counts, and `设备语音` baseline labeling.
 
 ## Self-review
 
-- Checked that only the Task 4 files were edited.
-- Verified the old `voiceProfile` filter path was removed from method progress comparison.
-- Confirmed `VoiceCore.migrateVoiceRecord()` is still used for loaded attempts.
-- Confirmed the report copy now mentions the excluded-count sentence required by the task.
-- Re-ran the full test suite after the changes.
+- Verified Task 4 code paths against the plan acceptance points.
+- Added a direct UI regression test for the review gap.
+- Re-ran targeted and full automated tests after the follow-up change.
+- Left unrelated untracked workspace files untouched.
 
 ## Concerns
 
-- The local shell environment does not expose `node` on PATH or `git` on PATH, so validation and commit steps used the bundled Node runtime and the local MinGit executable by absolute path.
-- I did not touch any Task 3 repair files or unrelated workspace files; there are still pre-existing untracked items in the workspace root and project folders, but they were left untouched.
+- None for Task 4 after the follow-up test/report fix.
