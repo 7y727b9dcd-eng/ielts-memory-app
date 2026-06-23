@@ -25,24 +25,26 @@ test("metacognitive method rewards relevant prediction and calibrated confidence
   assert.equal(score, 1);
 });
 
-test("baseline summary stores the selected voice and stable duration", () => {
+test("baseline summary stores the actual source fields and stable duration", () => {
   const result = core.summarizeBaseline([
-    { detailScore: 0.75, intentScore: 1, replayCount: 0, duration: 20, voiceProfile: "natural" },
-    { detailScore: 0.5, intentScore: 1, replayCount: 1, duration: 34, voiceProfile: "natural" },
+    { detailScore: 0.75, intentScore: 1, replayCount: 0, duration: 20, voiceProfile: "natural", speakerId: "system", audioProvider: "system", voiceVersion: 2, audioSource: "system" },
+    { detailScore: 0.5, intentScore: 1, replayCount: 1, duration: 34, voiceProfile: "natural", speakerId: "system", audioProvider: "system", voiceVersion: 2, audioSource: "system" },
   ]);
   assert.deepEqual(result, {
     detailScore: 0.625,
     intentScore: 1,
     onePassRate: 0.5,
     stableDuration: 20,
-    voiceProfile: "natural",
+    speakerId: "system",
+    audioProvider: "system",
+    voiceVersion: 2,
     completedAt: result.completedAt,
   });
   assert.match(result.completedAt, /^\d{4}-\d{2}-\d{2}T/);
 });
 
 test("progress needs five comparable questions and detects improvement", () => {
-  const baseline = { detailScore: 0.7, intentScore: 0.8, stableDuration: 20, voiceProfile: "natural" };
+  const baseline = { detailScore: 0.7, intentScore: 0.8, stableDuration: 20, speakerId: "lin_xiao", audioProvider: "azure", voiceVersion: 2 };
   assert.equal(core.evaluateProgress(baseline, Array(4).fill({ detailScore: 0.9, intentScore: 0.9, duration: 30 })).status, "collecting");
   const improved = core.evaluateProgress(baseline, Array(5).fill({ detailScore: 0.8, intentScore: 0.82, duration: 25 }));
   assert.equal(improved.status, "improved");

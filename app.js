@@ -193,6 +193,9 @@ let toastTimer = null;
 const { summarizeBaseline, scoreSlotMethod, scoreMetaMethod, scoreDelayedMethod, evaluateProgress, evaluateMethodTrend } = window.TrainingCore;
 const VoiceCoreApi = window.VoiceCore || {};
 const migrateVoiceRecord = typeof VoiceCoreApi.migrateVoiceRecord === "function" ? VoiceCoreApi.migrateVoiceRecord : (value) => value;
+const isVoiceComparable = typeof VoiceCoreApi.isVoiceComparable === "function"
+  ? VoiceCoreApi.isVoiceComparable
+  : (baseline, attempt) => Boolean(baseline && attempt && baseline.speakerId === attempt.speakerId && baseline.audioProvider === attempt.audioProvider && Number(baseline.voiceVersion) === Number(attempt.voiceVersion));
 const LEGACY_SPEAKERS = VoiceCoreApi.LEGACY_SPEAKERS || { natural: "lin_xiao", briefing: "chen_yu", calm: "su_ning", system: "system" };
 
 const $ = (id) => document.getElementById(id);
@@ -313,13 +316,29 @@ function resolvePreferredSpeakerId() {
 }
 
 function restoreBaselineSummary(value, items) {
-  if (value.baselineSummary || !value.baselineComplete) return value;
+  if (!value.baselineComplete) return value;
   const baseline = items.filter((item) => item.mode === "baseline" && item.sessionComplete !== false);
-  if (!baseline.length) return { ...value, baselineComplete: false };
+  if (!baseline.length) return value.baselineSummary ? value : { ...value, baselineComplete: false };
   return {
     ...value,
     baselineSummary: summarizeBaseline(baseline),
   };
+}
+
+function speakerDisplayName(speakerId) {
+  if (!speakerId || speakerId === SYSTEM_SPEAKER.id) return SYSTEM_SPEAKER.name;
+  return speakerCatalogMap.get(speakerId)?.name || speakerId;
+}
+
+function providerDisplayName(audioProvider) {
+  if (!audioProvider || audioProvider === "system") return SYSTEM_SPEAKER.name;
+  if (audioProvider === "azure") return "Azure 云语音";
+  return audioProvider;
+}
+
+function baselineVoiceSummary(baseline) {
+  if (!baseline) return "";
+  return `说话人：${speakerDisplayName(baseline.speakerId)} · 来源：${providerDisplayName(baseline.audioProvider)}`;
 }
 
 function validateScenarioCatalog() {
@@ -1159,16 +1178,18 @@ function renderMethodProgress() {
     return;
   }
   const labels = { improved: "明显进步", stable: "保持稳定", reinforce: "需要巩固", collecting: "数据积累中" };
+  const baselineLabel = baselineVoiceSummary(baseline);
   grid.innerHTML = ["slot", "meta", "delayed"].map((methodId) => {
     const all = attempts.filter((item) => item.methodId === methodId && item.sessionComplete !== false);
-    const comparable = all.filter((item) => item.voiceProfile === baseline.voiceProfile);
+    const comparable = all.filter((item) => isVoiceComparable(baseline, item));
+    const excludedCount = all.length - comparable.length;
     const progress = evaluateProgress(baseline, comparable.slice(-20));
     const trend = evaluateMethodTrend(all);
     const deltas = progress.status === "collecting"
-      ? `<span>同音色 ${progress.count} / 5 题</span>`
+      ? `<span>可比 ${progress.count} / 5 题</span>`
       : `<span>信息 ${formatDelta(progress.detailDelta)} 分</span><span>意图 ${formatDelta(progress.intentDelta)} 分</span><span>稳定长度 ${formatDelta(progress.durationDelta)} 秒</span>`;
     const methodTrend = trend.count < 10 ? `方法执行 ${trend.count} / 10 题` : `方法执行前后变化 ${formatDelta(trend.delta)} 分`;
-    return `<article class="method-progress-card ${progress.status}"><small>${TRAINING_METHODS[methodId].label}</small><strong>${labels[progress.status]}</strong><div>${deltas}</div><p>${methodTrend}</p></article>`;
+    return `<article class="method-progress-card ${progress.status}"><small>${TRAINING_METHODS[methodId].label} · ${escapeHtml(baselineLabel)}</small><strong>${labels[progress.status]}</strong><div>${deltas}<span>另有 ${excludedCount} 题因人物或实际音源不同未纳入结论</span></div><p>${methodTrend}</p></article>`;
   }).join("");
 }
 

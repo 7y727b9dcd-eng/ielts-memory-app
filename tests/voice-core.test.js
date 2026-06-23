@@ -31,15 +31,24 @@ test("voice catalog contains the exact three named speakers", () => {
   assert.equal(catalog.speakers[2].genderLabel, "\u5973\u58f0");
 });
 
-test("legacy briefing cache records migrate to the named speaker model", () => {
-  assert.deepEqual(core.migrateVoiceRecord({ voiceProfile: "briefing", audioSource: "cache" }), {
+test("legacy records with an undefined source remain readable but stay ambiguous", () => {
+  assert.deepEqual(core.migrateVoiceRecord({ voiceProfile: "briefing" }), {
     voiceProfile: "briefing",
-    audioSource: "cache",
     speakerId: "chen_yu",
-    audioProvider: "azure",
-    audioDelivery: "cache",
+    audioProvider: "system",
+    audioDelivery: "system",
     voiceVersion: 1,
   });
+});
+
+test("cache delivery on a v2 azure record remains comparable by provider", () => {
+  const migrated = core.migrateVoiceRecord({ speakerId: "lin_xiao", audioProvider: "azure", audioSource: "cache", voiceVersion: 2 });
+  assert.equal(migrated.audioDelivery, "cache");
+  assert.equal(migrated.audioProvider, "azure");
+  assert.equal(core.isVoiceComparable(
+    { speakerId: "lin_xiao", audioProvider: "azure", voiceVersion: 2 },
+    migrated,
+  ), true);
 });
 
 test("voice comparison requires exact speaker provider and version matches", () => {

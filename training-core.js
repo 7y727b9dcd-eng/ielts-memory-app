@@ -42,12 +42,18 @@
   function summarizeBaseline(items) {
     if (!items.length) return null;
     const stable = items.filter((item) => clamp(item.detailScore) >= 0.7 && clamp(item.intentScore) === 1);
+    const source = items[0] || {};
+    const actualSource = source.audioSource ?? source.source ?? source.audioDelivery ?? "system";
+    const speakerId = source.speakerId || "system";
+    const audioProvider = source.audioProvider || (actualSource === "system" ? "system" : "azure");
     return {
       detailScore: round4(average(items, "detailScore")),
       intentScore: round4(average(items, "intentScore")),
       onePassRate: round4(items.filter((item) => Number(item.replayCount) === 0).length / items.length),
       stableDuration: stable.length ? Math.max(...stable.map((item) => Number(item.duration) || 0)) : 10,
-      voiceProfile: items[0].voiceProfile || "system",
+      speakerId,
+      audioProvider,
+      voiceVersion: Number(source.voiceVersion) || 1,
       completedAt: new Date().toISOString(),
     };
   }
