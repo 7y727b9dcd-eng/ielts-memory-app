@@ -1,16 +1,17 @@
-const CACHE_NAME = "listening-training-pwa-v14";
-const AUDIO_CACHE_NAME = "listening-training-audio-v1";
+const CACHE_NAME = "listening-training-pwa-v15";
+const AUDIO_CACHE_NAME = "listening-training-audio-v2";
 const PERSISTENT_CACHES = new Set([CACHE_NAME, AUDIO_CACHE_NAME]);
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./index.html?v=14",
-  "./styles.css?v=14",
-  "./training-core.js?v=14",
-  "./voice-core.js?v=14",
-  "./app.js?v=14",
+  "./index.html?v=15",
+  "./styles.css?v=15",
+  "./training-core.js?v=15",
+  "./voice-core.js?v=15",
+  "./app.js?v=15",
   "./data/scenarios.json",
-  "./manifest.webmanifest",
+  "./data/voices.json",
+  "./manifest.webmanifest?v=15",
   "./icons/icon.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

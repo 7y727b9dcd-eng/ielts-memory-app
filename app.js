@@ -14,11 +14,6 @@ const TTS_VERSION = "2";
 const PREVIEW_SCENARIO_ID = "task-handoff-1";
 const SLOT_TYPES = ["person", "action", "condition", "time", "reason"];
 
-const DEFAULT_SPEAKER_CATALOG = Object.freeze([
-  { id: "lin_xiao", name: "林晓", genderLabel: "女声", azureVoice: "zh-CN-XiaoxiaoNeural", style: "chat", styleDegree: 0.55 },
-  { id: "chen_yu", name: "陈屿", genderLabel: "男声", azureVoice: "zh-CN-YunxiNeural", style: "chat", styleDegree: 0.45 },
-  { id: "su_ning", name: "苏宁", genderLabel: "女声", azureVoice: "zh-CN-XiaoyiNeural", style: null, styleDegree: null },
-]);
 const SYSTEM_SPEAKER = Object.freeze({
   id: "system",
   name: "设备语音",
@@ -30,12 +25,6 @@ const LEGACY_VOICE_PROFILE_BY_SPEAKER = Object.freeze({
   chen_yu: "briefing",
   su_ning: "calm",
   system: "system",
-});
-const VOICE_PROFILES = Object.freeze({
-  lin_xiao: { label: "林晓", description: "云语音说话人" },
-  chen_yu: { label: "陈屿", description: "云语音说话人" },
-  su_ning: { label: "苏宁", description: "云语音说话人" },
-  system: { label: "设备语音", description: "设备普通话" },
 });
 
 const TRAINING_METHODS = Object.freeze({
@@ -179,8 +168,8 @@ const defaultSettings = {
   baseRate: 0.92,
   reminders: false,
   reminderTime: "20:00",
-  speakerId: "lin_xiao",
-  voiceProfile: "natural",
+  speakerId: "system",
+  voiceProfile: "system",
   lastMethodId: "slot",
   ttsEndpoint: "",
 };
@@ -192,8 +181,8 @@ let attempts = [];
 let storageMode = "indexeddb";
 let session = null;
 let pendingSession = null;
-let speakerCatalog = [...DEFAULT_SPEAKER_CATALOG];
-let speakerCatalogMap = new Map(DEFAULT_SPEAKER_CATALOG.map((speaker) => [speaker.id, speaker]));
+let speakerCatalog = [];
+let speakerCatalogMap = new Map();
 let voiceServiceState = { available: false, reason: "not_configured", endpoint: "", version: 2 };
 let currentAudio = null;
 let currentAudioUrl = null;
@@ -281,8 +270,8 @@ async function loadSpeakerCatalog() {
     if (catalog.version !== 2 || !Array.isArray(catalog.speakers) || !catalog.speakers.length) throw new Error("Invalid speaker catalog version");
     return catalog.speakers;
   } catch (error) {
-    console.warn("Falling back to built-in speaker catalog.", error);
-    return [...DEFAULT_SPEAKER_CATALOG];
+    console.warn("Speaker catalog unavailable; cloud speakers hidden.", error);
+    return [];
   }
 }
 
@@ -300,10 +289,11 @@ function migrateAttempt(value) {
 
 function normalizeSpeakerSettings(value) {
   const speakerId = value?.speakerId || LEGACY_SPEAKERS[value?.voiceProfile] || defaultSettings.speakerId;
+  const fallbackSpeakerId = speakerCatalog[0]?.id || SYSTEM_SPEAKER.id;
   return {
     ...defaultSettings,
     ...value,
-    speakerId: speakerCatalogMap.has(speakerId) ? speakerId : defaultSettings.speakerId,
+    speakerId: speakerCatalogMap.has(speakerId) ? speakerId : fallbackSpeakerId,
   };
 }
 
@@ -312,13 +302,14 @@ function legacyVoiceProfileFromSpeakerId(speakerId) {
 }
 
 function voiceSetupMessage(state = voiceServiceState) {
-  if (state.available) return "云语音可用，可选择三位说话人并记住偏好。";
-  if (state.reason === "not_configured") return "尚未配置云语音代理，本次将使用设备语音。";
-  return "云语音当前不可用，本次将使用设备语音，不会把一条设备语音伪装成三个人。";
+  if (state.available && speakerCatalog.length) return "\u4e91\u8bed\u97f3\u53ef\u7528\uff0c\u53ef\u9009\u62e9\u4e09\u4f4d\u8bf4\u8bdd\u4eba\u5e76\u8bb0\u4f4f\u504f\u597d\u3002";
+  if (state.available) return "\u4e91\u8bed\u97f3\u670d\u52a1\u5df2\u8fde\u901a\uff0c\u4f46\u8bf4\u8bdd\u4eba\u76ee\u5f55\u4e0d\u53ef\u7528\uff0c\u672c\u6b21\u5c06\u4f7f\u7528\u8bbe\u5907\u8bed\u97f3\u3002";
+  if (state.reason === "not_configured") return "\u5c1a\u672a\u914d\u7f6e\u4e91\u8bed\u97f3\u4ee3\u7406\uff0c\u672c\u6b21\u5c06\u4f7f\u7528\u8bbe\u5907\u8bed\u97f3\u3002";
+  return "\u4e91\u8bed\u97f3\u5f53\u524d\u4e0d\u53ef\u7528\uff0c\u672c\u6b21\u5c06\u4f7f\u7528\u8bbe\u5907\u8bed\u97f3\uff0c\u4e0d\u4f1a\u628a\u4e00\u6761\u8bbe\u5907\u8bed\u97f3\u4f2a\u88c5\u6210\u4e09\u4e2a\u4eba\u3002";
 }
 
 function resolvePreferredSpeakerId() {
-  return speakerCatalogMap.has(settings.speakerId) ? settings.speakerId : (speakerCatalog[0]?.id || defaultSettings.speakerId);
+  return speakerCatalogMap.has(settings.speakerId) ? settings.speakerId : (speakerCatalog[0]?.id || SYSTEM_SPEAKER.id);
 }
 
 function restoreBaselineSummary(value, items) {
@@ -357,30 +348,33 @@ async function refreshSpeakerPreferences(selectedSpeakerId = resolvePreferredSpe
 function updateSpeakerSelectOptions() {
   const select = $("speakerIdInput");
   if (!select) return;
-  const value = resolvePreferredSpeakerId();
-  select.innerHTML = speakerCatalog.map((speaker) => `<option value="${speaker.id}">${escapeHtml(speaker.name)} · ${escapeHtml(speaker.genderLabel)}</option>`).join("");
-  select.value = speakerCatalogMap.has(value) ? value : (speakerCatalog[0]?.id || "");
-  select.disabled = !voiceServiceState.available;
+  const cloudSpeakersReady = voiceServiceState.available && speakerCatalog.length > 0;
+  const options = cloudSpeakersReady ? speakerCatalog : [SYSTEM_SPEAKER];
+  const value = cloudSpeakersReady ? resolvePreferredSpeakerId() : SYSTEM_SPEAKER.id;
+  select.innerHTML = options.map((speaker) => `<option value="${speaker.id}">${escapeHtml(speaker.name)} - ${escapeHtml(speaker.genderLabel)}</option>`).join("");
+  select.value = value;
+  select.disabled = !cloudSpeakersReady;
 }
 
 function renderSpeakerChoices(selectedSpeakerId = resolvePreferredSpeakerId()) {
   const container = $("speakerChoiceGrid");
   const status = $("voiceSetupStatus");
   if (!container || !status) return;
-  const choices = voiceServiceState.available
+  const cloudSpeakersReady = voiceServiceState.available && speakerCatalog.length > 0;
+  const choices = cloudSpeakersReady
     ? speakerCatalog.map((speaker) => ({ ...speaker, available: true, disabled: false }))
     : [
         { ...SYSTEM_SPEAKER, available: true, disabled: false, checked: true },
         ...speakerCatalog.map((speaker) => ({ ...speaker, available: false, disabled: true })),
       ];
-  const checkedSpeakerId = voiceServiceState.available ? selectedSpeakerId : SYSTEM_SPEAKER.id;
+  const checkedSpeakerId = cloudSpeakersReady ? selectedSpeakerId : SYSTEM_SPEAKER.id;
   container.innerHTML = choices.map((speaker) => {
     const isSystem = speaker.id === SYSTEM_SPEAKER.id;
     const checked = checkedSpeakerId === speaker.id;
-    const badge = speaker.available ? (isSystem ? "设备语音" : "云可用") : "云不可用";
+    const badge = speaker.available ? (isSystem ? "\u8bbe\u5907\u8bed\u97f3" : "\u4e91\u53ef\u7528") : "\u4e91\u4e0d\u53ef\u7528";
     const description = isSystem
       ? SYSTEM_SPEAKER.description
-      : `${speaker.name}使用同一题试听，保持对比公平。`;
+      : `${speaker.name}\u4f7f\u7528\u540c\u4e00\u9898\u8bd5\u542c\uff0c\u4fdd\u6301\u5bf9\u6bd4\u516c\u5e73\u3002`;
     return `<div class="speaker-choice${speaker.disabled ? " speaker-choice--disabled" : ""}${isSystem ? " speaker-choice--system" : ""}">
       <label>
         <input type="radio" name="speakerId" value="${speaker.id}" ${checked ? "checked" : ""} ${speaker.disabled ? "disabled" : ""} />
@@ -389,7 +383,7 @@ function renderSpeakerChoices(selectedSpeakerId = resolvePreferredSpeakerId()) {
         <span class="speaker-choice__meta">${escapeHtml(speaker.genderLabel)}</span>
         <span class="speaker-choice__description">${escapeHtml(description)}</span>
       </label>
-      <button type="button" data-speaker-preview="${speaker.id}" ${speaker.disabled ? "disabled" : ""}>试听同一题</button>
+      <button type="button" data-speaker-preview="${speaker.id}" ${speaker.disabled ? "disabled" : ""}>\u8bd5\u542c\u540c\u4e00\u9898</button>
     </div>`;
   }).join("");
   status.textContent = voiceSetupMessage();
@@ -679,7 +673,7 @@ async function speakScenario(scenario, keepAnswerVisible) {
   setStage("exerciseReady");
   $("preListenMethodPanel").querySelectorAll("input").forEach((input) => { input.disabled = true; });
 
-  if (session.selectedSpeakerId && session.selectedSpeakerId !== SYSTEM_SPEAKER.id && voiceServiceState.available) {
+  if (session.selectedSpeakerId && session.selectedSpeakerId !== SYSTEM_SPEAKER.id && voiceServiceState.available && speakerCatalogMap.has(session.selectedSpeakerId)) {
     try {
       $("audioStatus").textContent = "正在准备自然工作语音……";
       const { url, delivery } = await fetchVoiceAudio(scenario.id, session.selectedSpeakerId);
@@ -752,27 +746,31 @@ async function fetchVoiceAudio(scenarioId, speakerId) {
 
 async function previewSpeaker(speakerId) {
   stopSpeech();
-  const profileId = speakerId;
   const button = document.querySelector(`[data-speaker-preview="${speakerId}"]`);
   if (button) button.disabled = true;
-  $("voiceSetupStatus").textContent = `正在准备“${VOICE_PROFILES[profileId].label}”试听……`;
+  const speaker = speakerCatalogMap.get(speakerId) || SYSTEM_SPEAKER;
+  $("voiceSetupStatus").textContent = `\u6b63\u5728\u51c6\u5907\u201c${speaker.name}\u201d\u8bd5\u542c\u2026\u2026`;
   const previewScenario = SCENARIOS.find((item) => item.id === PREVIEW_SCENARIO_ID) || SCENARIOS[0];
   try {
-    if (!settings.ttsEndpoint) throw new Error("proxy not configured");
-    const { url, delivery } = await fetchVoiceAudio(previewScenario.id, profileId);
+    if (!voiceServiceState.available || speakerId === SYSTEM_SPEAKER.id || !settings.ttsEndpoint) throw new Error("cloud preview unavailable");
+    const { url, delivery } = await fetchVoiceAudio(previewScenario.id, speakerId);
     const source = delivery;
     currentAudioUrl = url;
     currentAudio = new Audio(url);
     currentAudio.onended = () => { if (button) button.disabled = false; };
     await currentAudio.play();
-    $("voiceSetupStatus").textContent = source === "cache" ? "试听来自本地缓存。" : "试听来自安全语音代理。";
+    $("voiceSetupStatus").textContent = source === "cache" ? "\u8bd5\u542c\u6765\u81ea\u672c\u5730\u7f13\u5b58\u3002" : "\u8bd5\u542c\u6765\u81ea\u5b89\u5168\u8bed\u97f3\u4ee3\u7406\u3002";
   } catch (error) {
+    if (!("speechSynthesis" in window)) {
+      $("voiceSetupStatus").textContent = "\u5f53\u524d\u6d4f\u89c8\u5668\u65e0\u6cd5\u8bd5\u7528\u8bbe\u5907\u8bed\u97f3\uff0c\u8bf7\u6539\u7528 Safari \u6216 Chrome\u3002";
+      return;
+    }
     const utterance = new SpeechSynthesisUtterance(previewScenario.text);
     utterance.lang = "zh-CN";
     utterance.rate = settings.baseRate;
     utterance.onend = () => { if (button) button.disabled = false; };
     speechSynthesis.speak(utterance);
-    $("voiceSetupStatus").textContent = "云语音不可用，当前试听为设备语音。";
+    $("voiceSetupStatus").textContent = "\u4e91\u8bed\u97f3\u4e0d\u53ef\u7528\uff0c\u5f53\u524d\u8bd5\u542c\u4e3a\u8bbe\u5907\u8bed\u97f3\u3002";
   } finally {
     setTimeout(() => { if (button) button.disabled = false; }, 12000);
   }
@@ -1223,7 +1221,7 @@ function syncSettingsForm() {
   $("reminderInput").checked = Boolean(settings.reminders);
   $("reminderTimeInput").value = settings.reminderTime || "20:00";
   $("speakerIdInput").value = resolvePreferredSpeakerId();
-  $("speakerIdInput").disabled = !voiceServiceState.available;
+  $("speakerIdInput").disabled = !(voiceServiceState.available && speakerCatalog.length > 0);
   $("ttsEndpointInput").value = settings.ttsEndpoint || "";
 }
 
@@ -1232,10 +1230,14 @@ async function saveSettings() {
   settings.baseRate = Number($("baseRateInput").value);
   settings.reminders = $("reminderInput").checked;
   settings.reminderTime = $("reminderTimeInput").value || "20:00";
-  settings.speakerId = $("speakerIdInput").value || resolvePreferredSpeakerId();
-  settings.voiceProfile = legacyVoiceProfileFromSpeakerId(settings.speakerId);
+  const selectedSpeakerId = $("speakerIdInput").value || resolvePreferredSpeakerId();
+  if (voiceServiceState.available && speakerCatalogMap.has(selectedSpeakerId)) {
+    settings.speakerId = selectedSpeakerId;
+    settings.voiceProfile = legacyVoiceProfileFromSpeakerId(settings.speakerId);
+  }
   settings.ttsEndpoint = $("ttsEndpointInput").value.trim().replace(/\/$/, "");
-  await refreshSpeakerPreferences(settings.speakerId);
+  const preferredSpeakerId = speakerCatalogMap.has(selectedSpeakerId) ? selectedSpeakerId : resolvePreferredSpeakerId();
+  await refreshSpeakerPreferences(preferredSpeakerId);
   await persistSettings();
   if (window.webkit?.messageHandlers?.scheduleReminder) {
     window.webkit.messageHandlers.scheduleReminder.postMessage({
@@ -1244,12 +1246,12 @@ async function saveSettings() {
       time: settings.reminderTime,
     });
   } else if (settings.reminders) {
-    showToast("提醒偏好已保存；安装版会按此时间发送通知");
+    showToast("\u63d0\u9192\u504f\u597d\u5df2\u4fdd\u5b58\uff1b\u5b89\u88c5\u7248\u4f1a\u6309\u6b64\u65f6\u95f4\u53d1\u9001\u901a\u77e5");
     renderDashboard();
     return;
   }
   renderDashboard();
-  showToast("设置已保存在本机");
+  showToast("\u8bbe\u7f6e\u5df2\u4fdd\u5b58\u5728\u672c\u673a");
 }
 
 function exportData() {
