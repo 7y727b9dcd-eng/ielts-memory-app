@@ -7,4 +7,4 @@ Task 1: complete (commits 482ecab..de62de2, spec PASS, quality APPROVED)
 Minor ledger: Task 1 scratch report contains stale commit metadata; product code and tests are unaffected. Final review should ignore scratch metadata but verify commit range from git.
 Task 2: complete (commits 4e70623..625d289, spec PASS, quality APPROVED)
 Task 3: complete (commits 76e9c4d..43e4853, spec PASS, quality APPROVED)
-Task 4: review-fix applied (commits 6a23654..pending, awaiting re-review)
+Task 4: complete (commits 6a23654..64e5c53, spec PASS, quality APPROVED)
