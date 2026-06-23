@@ -4,6 +4,12 @@ import test from "node:test";
 import { createHandler } from "../src/index.js";
 
 const env = { AZURE_SPEECH_KEY: "secret", AZURE_SPEECH_REGION: "eastasia" };
+const injectedSpeakers = [
+  { id: "lin_xiao", azureVoice: "test-lin-xiao", style: "chat", styleDegree: 0.55 },
+  { id: "chen_yu", azureVoice: "test-chen-yu", style: "chat", styleDegree: 0.45 },
+  { id: "su_ning", azureVoice: "test-su-ning", style: null, styleDegree: null },
+  { id: "extra_guest", azureVoice: "test-extra-guest", style: "chat", styleDegree: 0.3 },
+];
 
 function createMemoryCache() {
   const store = new Map();
@@ -22,6 +28,14 @@ test("worker imports the shared speaker catalog instead of hard-coding Azure voi
   const source = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
   assert.match(source, /data\/voices\.json/);
   assert.doesNotMatch(source, /zh-CN-XiaoxiaoNeural|zh-CN-YunxiNeural|zh-CN-XiaoyiNeural/);
+});
+
+test("worker freezes the public speaker allow-list to the three named IDs", () => {
+  const source = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
+  assert.match(source, /lin_xiao/);
+  assert.match(source, /chen_yu/);
+  assert.match(source, /su_ning/);
+  assert.match(source, /PUBLIC_SPEAKER_IDS|ALLOWED_SPEAKER_IDS|PUBLIC_SPEAKERS/);
 });
 
 test("health is unavailable when either Azure secret is absent", async () => {
@@ -86,9 +100,11 @@ test("lin xiao and chen yu use the shared v2 Azure speaker settings", async () =
   assert.equal(requests[0].init.headers["Ocp-Apim-Subscription-Key"], "secret");
   assert.match(requests[0].url, /eastasia\.tts\.speech\.microsoft\.com/);
   assert.match(requests[0].init.body, /zh-CN-XiaoxiaoNeural/);
-  assert.match(requests[0].init.body, /mstts:express-as style="chat" styledegree="0\.55"/);
+  assert.match(requests[0].init.body, /<voice name="zh-CN-XiaoxiaoNeural"><mstts:express-as style="chat" styledegree="0\.55"><prosody rate="0%">/);
+  assert.match(requests[0].init.body, /<\/prosody><\/mstts:express-as><\/voice>/);
   assert.match(requests[1].init.body, /zh-CN-YunxiNeural/);
-  assert.match(requests[1].init.body, /mstts:express-as style="chat" styledegree="0\.45"/);
+  assert.match(requests[1].init.body, /<voice name="zh-CN-YunxiNeural"><mstts:express-as style="chat" styledegree="0\.45"><prosody rate="0%">/);
+  assert.match(requests[1].init.body, /<\/prosody><\/mstts:express-as><\/voice>/);
 });
 
 test("su ning omits express-as while still returning mp3", async () => {
@@ -105,8 +121,29 @@ test("su ning omits express-as while still returning mp3", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "audio/mpeg");
   assert.match(request.url, /eastasia\.tts\.speech\.microsoft\.com/);
-  assert.match(request.init.body, /zh-CN-XiaoyiNeural/);
+  assert.match(request.init.body, /<voice name="zh-CN-XiaoyiNeural"><prosody rate="0%">/);
+  assert.match(request.init.body, /<\/prosody><\/voice>/);
   assert.doesNotMatch(request.init.body, /mstts:express-as/);
+});
+
+test("injected speaker catalogs still expose only the frozen public allow-list", async () => {
+  const requests = [];
+  const handler = createHandler({
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init });
+      return new Response(new Uint8Array([2, 4, 6]), { status: 200, headers: { "content-type": "audio/mpeg" } });
+    },
+    cache: null,
+    speakers: injectedSpeakers,
+  });
+
+  const publicSpeaker = await handler(new Request("https://voice.example/v1/tts/task-handoff-1?profile=lin_xiao&v=2"), env);
+  const extraSpeaker = await handler(new Request("https://voice.example/v1/tts/task-handoff-1?profile=extra_guest&v=2"), env);
+
+  assert.equal(publicSpeaker.status, 200);
+  assert.match(requests[0].init.body, /test-lin-xiao/);
+  assert.equal(extraSpeaker.status, 400);
+  assert.equal(requests.length, 1);
 });
 
 test("equivalent v2 requests share the same cache key and call Azure once", async () => {

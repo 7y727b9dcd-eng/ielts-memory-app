@@ -3,9 +3,19 @@ import voices from "../../data/voices.json" with { type: "json" };
 
 const VERSION = 2;
 const SERVICE = "listening-training-tts";
-const SPEAKERS = new Map(voices.speakers.map((speaker) => [speaker.id, speaker]));
+const PUBLIC_SPEAKER_IDS = Object.freeze(["lin_xiao", "chen_yu", "su_ning"]);
+const PUBLIC_SPEAKER_ID_SET = new Set(PUBLIC_SPEAKER_IDS);
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, OPTIONS" };
 const SCENARIOS = new Map(scenarios.scenarios.map((scenario) => [scenario.id, scenario]));
+
+function createSpeakerMap(speakers = voices.speakers) {
+  const values = speakers instanceof Map ? speakers.values() : speakers;
+  return new Map(
+    Array.from(values, (speaker) => [speaker.id, speaker]).filter(([id]) => PUBLIC_SPEAKER_ID_SET.has(id)),
+  );
+}
+
+const SPEAKERS = createSpeakerMap();
 
 function json(value, status = 200) {
   return new Response(JSON.stringify(value), { status, headers: { ...CORS, "content-type": "application/json; charset=utf-8" } });
@@ -17,9 +27,9 @@ function escapeXml(value) {
 
 function buildSsml(text, speaker) {
   const content = speaker.style
-    ? `<mstts:express-as style="${speaker.style}" styledegree="${speaker.styleDegree}">${escapeXml(text)}</mstts:express-as>`
-    : escapeXml(text);
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"><voice name="${speaker.azureVoice}"><prosody rate="0%">${content}</prosody></voice></speak>`;
+    ? `<mstts:express-as style="${speaker.style}" styledegree="${speaker.styleDegree}"><prosody rate="0%">${escapeXml(text)}</prosody></mstts:express-as>`
+    : `<prosody rate="0%">${escapeXml(text)}</prosody>`;
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"><voice name="${speaker.azureVoice}">${content}</voice></speak>`;
 }
 
 function getHealth(env) {
@@ -30,7 +40,8 @@ function getHealth(env) {
   };
 }
 
-export function createHandler({ fetchImpl = fetch, cache = globalThis.caches?.default } = {}) {
+export function createHandler({ fetchImpl = fetch, cache = globalThis.caches?.default, speakers = SPEAKERS } = {}) {
+  const speakerMap = createSpeakerMap(speakers);
   return async function handle(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405);
@@ -44,7 +55,7 @@ export function createHandler({ fetchImpl = fetch, cache = globalThis.caches?.de
     const scenario = SCENARIOS.get(decodeURIComponent(match[1]));
     if (!scenario) return json({ error: "unknown_scenario" }, 404);
     const profile = url.searchParams.get("profile");
-    const speaker = profile ? SPEAKERS.get(profile) : null;
+    const speaker = profile ? speakerMap.get(profile) : null;
     if (!speaker || url.searchParams.get("v") !== String(VERSION)) return json({ error: "invalid_voice_or_version" }, 400);
     if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_REGION) return json({ error: "speech_not_configured" }, 503);
 
