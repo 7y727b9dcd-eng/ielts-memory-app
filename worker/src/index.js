@@ -1,12 +1,11 @@
-import catalog from "../../data/scenarios.json" with { type: "json" };
+import scenarios from "../../data/scenarios.json" with { type: "json" };
+import voices from "../../data/voices.json" with { type: "json" };
 
-const VOICES = Object.freeze({
-  natural: { name: "zh-CN-XiaoxiaoNeural", style: "chat", degree: "0.7" },
-  briefing: { name: "zh-CN-YunxiNeural", style: "assistant", degree: "0.7" },
-  calm: { name: "zh-CN-XiaoyiNeural", style: "serious", degree: "0.6" },
-});
-const SCENARIOS = new Map(catalog.scenarios.map((scenario) => [scenario.id, scenario]));
+const VERSION = 2;
+const SERVICE = "listening-training-tts";
+const SPEAKERS = new Map(voices.speakers.map((speaker) => [speaker.id, speaker]));
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, OPTIONS" };
+const SCENARIOS = new Map(scenarios.scenarios.map((scenario) => [scenario.id, scenario]));
 
 function json(value, status = 200) {
   return new Response(JSON.stringify(value), { status, headers: { ...CORS, "content-type": "application/json; charset=utf-8" } });
@@ -16,8 +15,19 @@ function escapeXml(value) {
   return String(value).replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]);
 }
 
-function buildSsml(text, voice) {
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"><voice name="${voice.name}"><mstts:express-as style="${voice.style}" styledegree="${voice.degree}"><prosody rate="0%">${escapeXml(text)}</prosody></mstts:express-as></voice></speak>`;
+function buildSsml(text, speaker) {
+  const content = speaker.style
+    ? `<mstts:express-as style="${speaker.style}" styledegree="${speaker.styleDegree}">${escapeXml(text)}</mstts:express-as>`
+    : escapeXml(text);
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN"><voice name="${speaker.azureVoice}"><prosody rate="0%">${content}</prosody></voice></speak>`;
+}
+
+function getHealth(env) {
+  const azureConfigured = Boolean(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION);
+  return {
+    status: azureConfigured ? 200 : 503,
+    body: { ok: azureConfigured, service: SERVICE, version: VERSION, azureConfigured },
+  };
 }
 
 export function createHandler({ fetchImpl = fetch, cache = globalThis.caches?.default } = {}) {
@@ -25,17 +35,20 @@ export function createHandler({ fetchImpl = fetch, cache = globalThis.caches?.de
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405);
     const url = new URL(request.url);
-    if (url.pathname === "/v1/health") return json({ ok: true, service: "listening-training-tts", version: 1 });
+    if (url.pathname === "/v1/health") {
+      const health = getHealth(env);
+      return json(health.body, health.status);
+    }
     const match = url.pathname.match(/^\/v1\/tts\/([^/]+)$/);
     if (!match) return json({ error: "not_found" }, 404);
     const scenario = SCENARIOS.get(decodeURIComponent(match[1]));
     if (!scenario) return json({ error: "unknown_scenario" }, 404);
-    const profile = url.searchParams.get("profile") || "natural";
-    const voice = VOICES[profile];
-    if (!voice || url.searchParams.get("v") !== "1") return json({ error: "invalid_voice_or_version" }, 400);
+    const profile = url.searchParams.get("profile");
+    const speaker = profile ? SPEAKERS.get(profile) : null;
+    if (!speaker || url.searchParams.get("v") !== String(VERSION)) return json({ error: "invalid_voice_or_version" }, 400);
     if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_REGION) return json({ error: "speech_not_configured" }, 503);
 
-    const normalized = new URL(`/v1/tts/${scenario.id}?profile=${profile}&v=1`, url.origin).toString();
+    const normalized = new URL(`/v1/tts/${scenario.id}?profile=${speaker.id}&v=${VERSION}`, url.origin).toString();
     const cacheKey = new Request(normalized, { method: "GET" });
     const cached = cache ? await cache.match(cacheKey) : null;
     if (cached) return cached;
@@ -46,9 +59,9 @@ export function createHandler({ fetchImpl = fetch, cache = globalThis.caches?.de
         "Ocp-Apim-Subscription-Key": env.AZURE_SPEECH_KEY,
         "Content-Type": "application/ssml+xml",
         "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
-        "User-Agent": "ListeningTrainingTTS/1.0",
+        "User-Agent": "ListeningTrainingTTS/2.0",
       },
-      body: buildSsml(scenario.text, voice),
+      body: buildSsml(scenario.text, speaker),
     });
     if (!azure.ok) return json({ error: "speech_upstream_failed", status: azure.status }, 502);
     const response = new Response(azure.body, { status: 200, headers: { ...CORS, "content-type": "audio/mpeg", "cache-control": "public, max-age=31536000, immutable" } });
