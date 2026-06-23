@@ -3,11 +3,107 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const test = require("node:test");
+const vm = require("node:vm");
 
 const index = fs.readFileSync("index.html", "utf8");
 const app = fs.readFileSync("app.js", "utf8");
 const manifest = fs.readFileSync("manifest.webmanifest", "utf8");
 const worker = fs.readFileSync("sw.js", "utf8");
+const speakerCatalog = JSON.parse(fs.readFileSync("data/voices.json", "utf8")).speakers;
+
+function createElement(id) {
+  return {
+    id,
+    innerHTML: "",
+    textContent: "",
+    value: "",
+    disabled: false,
+    checked: false,
+    classList: { add() {}, remove() {}, toggle() {} },
+    querySelectorAll() { return []; },
+    addEventListener() {},
+  };
+}
+
+function createAppRuntime({ fetchImpl, includeSpeechSynthesis = false } = {}) {
+  const elements = new Map();
+  const previewButton = { disabled: false, dataset: { speakerPreview: "lin_xiao" } };
+  const document = {
+    readyState: "loading",
+    documentElement: { dataset: {} },
+    addEventListener() {},
+    getElementById(id) {
+      if (!elements.has(id)) elements.set(id, createElement(id));
+      return elements.get(id);
+    },
+    querySelector(selector) {
+      return selector.includes("data-speaker-preview") ? previewButton : null;
+    },
+    querySelectorAll() { return []; },
+    createElement,
+  };
+  const window = {
+    TrainingCore: {
+      summarizeBaseline() {},
+      scoreSlotMethod() {},
+      scoreMetaMethod() {},
+      scoreDelayedMethod() {},
+      evaluateProgress() {},
+      evaluateMethodTrend() {},
+    },
+    VoiceCore: {
+      migrateVoiceRecord(value) { return value; },
+      LEGACY_SPEAKERS: { natural: "lin_xiao", briefing: "chen_yu", calm: "su_ning", system: "system" },
+    },
+    addEventListener() {},
+  };
+  const speechSynthesis = {
+    cancel() {},
+    speak() {},
+    getVoices() { return []; },
+  };
+  if (includeSpeechSynthesis) window.speechSynthesis = speechSynthesis;
+  const context = {
+    document,
+    window,
+    console,
+    fetch: fetchImpl || (async () => ({ ok: false, json: async () => ({}) })),
+    AbortController,
+    Audio: function Audio() { return { play: async () => {}, pause() {}, removeAttribute() {}, load() {} }; },
+    URL: { createObjectURL() { return "blob:test"; }, revokeObjectURL() {} },
+    performance: { now() { return 0; } },
+    setTimeout() { return 1; },
+    clearTimeout() {},
+    localStorage: { getItem() { return null; }, setItem() {} },
+    indexedDB: {},
+    Intl,
+    Date,
+    Math,
+  };
+  if (includeSpeechSynthesis) {
+    context.speechSynthesis = speechSynthesis;
+    context.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) { this.text = text; };
+  }
+  vm.createContext(context);
+  vm.runInContext(`${app}
+globalThis.__speakerRuntime = {
+  setSpeakerState(catalog, state, settingsPatch = {}) {
+    speakerCatalog = catalog;
+    speakerCatalogMap = new Map(catalog.map((speaker) => [speaker.id, speaker]));
+    voiceServiceState = state;
+    settings = { ...settings, ...settingsPatch };
+  },
+  renderSpeakerChoices,
+  updateSpeakerSelectOptions,
+  checkVoiceService,
+  previewSpeaker
+};`, context);
+  return {
+    context,
+    previewButton,
+    getElement(id) { return document.getElementById(id); },
+  };
+}
 
 test("interactive speaker setup uses generated speaker choices instead of voice type cards", () => {
   assert.match(index, /id="speakerChoiceGrid"/);
@@ -69,4 +165,54 @@ test("task 3 keeps one explicit system fallback path and disables named speakers
 
 test("task 3 preview fallback guards browsers without speechSynthesis", () => {
   assert.match(app, /if\s*\(!\("speechSynthesis" in window\)\)\s*\{\s*\$\("voiceSetupStatus"\)\.textContent = .*?return;\s*\}/s);
+});
+
+test("runtime disables named speaker controls when cloud voice is unavailable", () => {
+  const runtime = createAppRuntime();
+  runtime.context.__speakerRuntime.setSpeakerState(speakerCatalog, { available: false, reason: "unreachable", endpoint: "", version: 2 });
+
+  runtime.context.__speakerRuntime.updateSpeakerSelectOptions();
+  assert.equal(runtime.getElement("speakerIdInput").disabled, true);
+  assert.match(runtime.getElement("speakerIdInput").innerHTML, /value="system"/);
+  assert.doesNotMatch(runtime.getElement("speakerIdInput").innerHTML, /value="lin_xiao"/);
+
+  runtime.context.__speakerRuntime.renderSpeakerChoices("lin_xiao");
+  const html = runtime.getElement("speakerChoiceGrid").innerHTML;
+  assert.match(html, /value="system" checked/);
+  assert.match(html, /value="lin_xiao"[^>]*disabled/);
+  assert.match(html, /value="chen_yu"[^>]*disabled/);
+  assert.match(html, /value="su_ning"[^>]*disabled/);
+});
+
+test("runtime health check requires azure readiness and v2 contract", async () => {
+  const healthBodies = [
+    { ok: true, azureConfigured: true, version: 2 },
+    { ok: true, azureConfigured: true, version: 1 },
+  ];
+  const requestedUrls = [];
+  const runtime = createAppRuntime({
+    fetchImpl: async (url) => {
+      requestedUrls.push(String(url));
+      return { ok: true, json: async () => healthBodies.shift() };
+    },
+  });
+  runtime.context.__speakerRuntime.setSpeakerState(speakerCatalog, { available: false, reason: "not_configured", endpoint: "", version: 2 }, { ttsEndpoint: "https://voice.example/" });
+
+  const ready = await runtime.context.__speakerRuntime.checkVoiceService();
+  const stale = await runtime.context.__speakerRuntime.checkVoiceService();
+
+  assert.equal(requestedUrls[0], "https://voice.example/v1/health");
+  assert.equal(ready.available, true);
+  assert.equal(stale.available, false);
+  assert.ok(["unavailable", "unhealthy"].includes(stale.reason));
+});
+
+test("runtime preview immediately restores the button when no speech synthesis fallback exists", async () => {
+  const runtime = createAppRuntime({ includeSpeechSynthesis: false });
+  runtime.context.__speakerRuntime.setSpeakerState(speakerCatalog, { available: false, reason: "unreachable", endpoint: "", version: 2 }, { ttsEndpoint: "" });
+
+  await runtime.context.__speakerRuntime.previewSpeaker("lin_xiao");
+
+  assert.equal(runtime.previewButton.disabled, false);
+  assert.match(runtime.getElement("voiceSetupStatus").textContent, /无法试用设备语音/);
 });

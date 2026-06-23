@@ -82,3 +82,25 @@
 3. `node --test tests/*.test.js worker/test/*.test.mjs`
    - Result: PASS
    - Summary: 28 tests passed, 0 failed
+
+## Second follow-up after independent review
+
+- Added runtime-level speaker UI tests using a lightweight VM browser harness instead of only source-text assertions.
+- Runtime tests now exercise:
+  - unavailable cloud voice disables named speaker controls and exposes only system in the selector;
+  - `/v1/health` accepts only Azure-ready v2 responses;
+  - preview fallback immediately restores the button when `speechSynthesis` is unsupported.
+- Fixed the no-`speechSynthesis` preview path so the clicked button is re-enabled immediately after the warning.
+
+## Second follow-up verification
+
+1. `node --test tests/speaker-ui-contract.test.js tests/offline-assets.test.js`
+   - Result: PASS
+   - Summary: 11 tests passed, 0 failed
+
+2. `node --check app.js`
+   - Result: PASS
+
+3. `node --test tests/*.test.js worker/test/*.test.mjs`
+   - Result: PASS
+   - Summary: 31 tests passed, 0 failed

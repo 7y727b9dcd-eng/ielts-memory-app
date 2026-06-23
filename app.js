@@ -763,6 +763,7 @@ async function previewSpeaker(speakerId) {
   } catch (error) {
     if (!("speechSynthesis" in window)) {
       $("voiceSetupStatus").textContent = "\u5f53\u524d\u6d4f\u89c8\u5668\u65e0\u6cd5\u8bd5\u7528\u8bbe\u5907\u8bed\u97f3\uff0c\u8bf7\u6539\u7528 Safari \u6216 Chrome\u3002";
+      if (button) button.disabled = false;
       return;
     }
     const utterance = new SpeechSynthesisUtterance(previewScenario.text);
