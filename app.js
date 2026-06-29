@@ -211,7 +211,8 @@ function reportFatalError(error) {
   document.documentElement.dataset.appReady = "error";
   const toast = document.getElementById("toast");
   if (toast) {
-    toast.textContent = "应用初始化失败，请刷新页面后重试";
+    const details = error?.message ? `：${error.message}` : "";
+    toast.textContent = `应用初始化失败${details}。请刷新页面后重试`;
     toast.classList.add("show");
   }
 }
@@ -1457,7 +1458,7 @@ window.ListenRespondAI = Object.freeze({
 });
 
 function registerServiceWorker() {
-  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  if ("serviceWorker" in navigator && ["http:", "https:"].includes(location.protocol)) {
     navigator.serviceWorker.register("./sw.js").catch((error) => console.warn("Service worker registration failed", error));
   }
 }

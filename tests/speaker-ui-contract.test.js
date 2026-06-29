@@ -136,20 +136,20 @@ test("task 3 upgrades the browser contract to v2 cloud voice health checks", () 
   assert.match(app, /version\s*===\s*2|version\s*!==\s*2|Number\(.*version.*\)\s*===\s*2/s);
 });
 
-test("task 3 keeps web assets aligned on pwa v15 while preserving audio cache v2", () => {
-  assert.match(index, /href="\.\/manifest\.webmanifest\?v=15"/);
-  assert.match(index, /styles\.css\?v=15/);
-  assert.match(index, /training-core\.js\?v=15/);
-  assert.match(index, /voice-core\.js\?v=15/);
-  assert.match(index, /app\.js\?v=15/);
-  assert.match(manifest, /"start_url": "\.\/index\.html\?v=15"/);
-  assert.match(worker, /const CACHE_NAME = "listening-training-pwa-v15";/);
+test("task 3 keeps web assets aligned on pwa v16 while preserving audio cache v2", () => {
+  assert.match(index, /href="\.\/manifest\.webmanifest\?v=16"/);
+  assert.match(index, /styles\.css\?v=16/);
+  assert.match(index, /training-core\.js\?v=16/);
+  assert.match(index, /voice-core\.js\?v=16/);
+  assert.match(index, /app\.js\?v=16/);
+  assert.match(manifest, /"start_url": "\.\/index\.html\?v=16"/);
+  assert.match(worker, /const CACHE_NAME = "listening-training-pwa-v16";/);
   assert.match(worker, /const AUDIO_CACHE_NAME = "listening-training-audio-v2";/);
-  assert.match(worker, /\.\/index\.html\?v=15/);
-  assert.match(worker, /\.\/styles\.css\?v=15/);
-  assert.match(worker, /\.\/training-core\.js\?v=15/);
-  assert.match(worker, /\.\/voice-core\.js\?v=15/);
-  assert.match(worker, /\.\/app\.js\?v=15/);
+  assert.match(worker, /\.\/index\.html\?v=16/);
+  assert.match(worker, /\.\/styles\.css\?v=16/);
+  assert.match(worker, /\.\/training-core\.js\?v=16/);
+  assert.match(worker, /\.\/voice-core\.js\?v=16/);
+  assert.match(worker, /\.\/app\.js\?v=16/);
 });
 
 test("task 3 uses voices.json as the only cloud speaker catalog source", () => {

@@ -15,11 +15,11 @@ test("service worker keeps generated speech cache during upgrades", () => {
 });
 
 test("offline shell includes shared catalog and scoring core", () => {
-  assert.match(worker, /listening-training-pwa-v15/);
-  assert.match(worker, /training-core\.js\?v=15/);
-  assert.match(worker, /voice-core\.js\?v=15/);
-  assert.match(worker, /app\.js\?v=15/);
-  assert.match(worker, /manifest\.webmanifest\?v=15/);
+  assert.match(worker, /listening-training-pwa-v16/);
+  assert.match(worker, /training-core\.js\?v=16/);
+  assert.match(worker, /voice-core\.js\?v=16/);
+  assert.match(worker, /app\.js\?v=16/);
+  assert.match(worker, /manifest\.webmanifest\?v=16/);
   assert.match(worker, /data\/scenarios\.json/);
   assert.match(worker, /data\/voices\.json/);
 });
