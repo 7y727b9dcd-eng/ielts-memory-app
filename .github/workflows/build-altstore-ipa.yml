@@ -37,6 +37,7 @@ jobs:
           cp index.html styles.css app.js training-core.js voice-core.js manifest.webmanifest sw.js AltStore-App/Web/
           cp -R icons AltStore-App/Web/icons
           cp -R data AltStore-App/Web/data
+          cp -R audio AltStore-App/Web/audio
 
       - name: Generate Xcode project
         working-directory: AltStore-App

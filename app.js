@@ -11,6 +11,7 @@ const SCENARIO_CATALOG_URL = "./data/scenarios.json";
 const VOICE_CATALOG_URL = "./data/voices.json";
 const AUDIO_CACHE_NAME = "listening-training-audio-v2";
 const TTS_VERSION = "2";
+const LOCAL_AUDIO_PROVIDER = "local-pack";
 const PREVIEW_SCENARIO_ID = "task-handoff-1";
 const SLOT_TYPES = ["person", "action", "condition", "time", "reason"];
 
@@ -306,10 +307,12 @@ function legacyVoiceProfileFromSpeakerId(speakerId) {
 }
 
 function voiceSetupMessage(state = voiceServiceState) {
-  if (state.available && speakerCatalog.length) return "\u4e91\u8bed\u97f3\u53ef\u7528\uff0c\u53ef\u9009\u62e9\u4e09\u4f4d\u8bf4\u8bdd\u4eba\u5e76\u8bb0\u4f4f\u504f\u597d\u3002";
-  if (state.available) return "\u4e91\u8bed\u97f3\u670d\u52a1\u5df2\u8fde\u901a\uff0c\u4f46\u8bf4\u8bdd\u4eba\u76ee\u5f55\u4e0d\u53ef\u7528\uff0c\u672c\u6b21\u5c06\u4f7f\u7528\u8bbe\u5907\u8bed\u97f3\u3002";
-  if (state.reason === "not_configured") return "\u5c1a\u672a\u914d\u7f6e\u4e91\u8bed\u97f3\u4ee3\u7406\uff0c\u672c\u6b21\u5c06\u4f7f\u7528\u8bbe\u5907\u8bed\u97f3\u3002";
-  return "\u4e91\u8bed\u97f3\u5f53\u524d\u4e0d\u53ef\u7528\uff0c\u672c\u6b21\u5c06\u4f7f\u7528\u8bbe\u5907\u8bed\u97f3\uff0c\u4e0d\u4f1a\u628a\u4e00\u6761\u8bbe\u5907\u8bed\u97f3\u4f2a\u88c5\u6210\u4e09\u4e2a\u4eba\u3002";
+  if (speakerCatalog.length) {
+    const suffix = state.available ? "云语音也可用。" : "云语音未启用，不影响训练。";
+    return `本地三人声音频包可用，可离线试听和训练。${suffix}`;
+  }
+  if (state.available) return "云语音服务已连通，但说话人目录不可用，本次将使用设备语音。";
+  return "本地说话人目录不可用，本次将使用设备语音。";
 }
 
 function resolvePreferredSpeakerId() {
@@ -333,6 +336,7 @@ function speakerDisplayName(speakerId) {
 
 function providerDisplayName(audioProvider) {
   if (!audioProvider || audioProvider === "system") return SYSTEM_SPEAKER.name;
+  if (audioProvider === LOCAL_AUDIO_PROVIDER) return "本地音频包";
   if (audioProvider === "azure") return "Azure 云语音";
   return audioProvider;
 }
@@ -368,30 +372,29 @@ async function refreshSpeakerPreferences(selectedSpeakerId = resolvePreferredSpe
 function updateSpeakerSelectOptions() {
   const select = $("speakerIdInput");
   if (!select) return;
-  const cloudSpeakersReady = voiceServiceState.available && speakerCatalog.length > 0;
-  const options = cloudSpeakersReady ? speakerCatalog : [SYSTEM_SPEAKER];
-  const value = cloudSpeakersReady ? resolvePreferredSpeakerId() : SYSTEM_SPEAKER.id;
+  const namedSpeakersReady = speakerCatalog.length > 0;
+  const options = namedSpeakersReady ? speakerCatalog : [SYSTEM_SPEAKER];
+  const value = namedSpeakersReady ? resolvePreferredSpeakerId() : SYSTEM_SPEAKER.id;
   select.innerHTML = options.map((speaker) => `<option value="${speaker.id}">${escapeHtml(speaker.name)} - ${escapeHtml(speaker.genderLabel)}</option>`).join("");
   select.value = value;
-  select.disabled = !cloudSpeakersReady;
+  select.disabled = !namedSpeakersReady;
 }
 
 function renderSpeakerChoices(selectedSpeakerId = resolvePreferredSpeakerId()) {
   const container = $("speakerChoiceGrid");
   const status = $("voiceSetupStatus");
   if (!container || !status) return;
-  const cloudSpeakersReady = voiceServiceState.available && speakerCatalog.length > 0;
-  const choices = cloudSpeakersReady
-    ? speakerCatalog.map((speaker) => ({ ...speaker, available: true, disabled: false }))
+  const namedSpeakersReady = speakerCatalog.length > 0;
+  const choices = namedSpeakersReady
+    ? speakerCatalog.map((speaker) => ({ ...speaker, available: true, disabled: false, delivery: LOCAL_AUDIO_PROVIDER }))
     : [
         { ...SYSTEM_SPEAKER, available: true, disabled: false, checked: true },
-        ...speakerCatalog.map((speaker) => ({ ...speaker, available: false, disabled: true })),
       ];
-  const checkedSpeakerId = cloudSpeakersReady ? selectedSpeakerId : SYSTEM_SPEAKER.id;
+  const checkedSpeakerId = namedSpeakersReady ? selectedSpeakerId : SYSTEM_SPEAKER.id;
   container.innerHTML = choices.map((speaker) => {
     const isSystem = speaker.id === SYSTEM_SPEAKER.id;
     const checked = checkedSpeakerId === speaker.id;
-    const badge = speaker.available ? (isSystem ? "\u8bbe\u5907\u8bed\u97f3" : "\u4e91\u53ef\u7528") : "\u4e91\u4e0d\u53ef\u7528";
+    const badge = speaker.available ? (isSystem ? "\u8bbe\u5907\u8bed\u97f3" : "\u672c\u5730\u97f3\u9891") : "\u4e0d\u53ef\u7528";
     const description = isSystem
       ? SYSTEM_SPEAKER.description
       : `${speaker.name}\u4f7f\u7528\u540c\u4e00\u9898\u8bd5\u542c\uff0c\u4fdd\u6301\u5bf9\u6bd4\u516c\u5e73\u3002`;
@@ -512,7 +515,7 @@ async function confirmSessionSetup() {
   const methodId = pendingSession.mode === "baseline" ? "free" : document.querySelector('input[name="trainingMethod"]:checked')?.value;
   const speakerId = document.querySelector('input[name="speakerId"]:checked')?.value;
   if (!methodId || !speakerId) return showToast("请先选择训练方法和说话人");
-  if (voiceServiceState.available && speakerCatalogMap.has(speakerId)) {
+  if (speakerCatalogMap.has(speakerId)) {
     settings.speakerId = speakerId;
     settings.voiceProfile = legacyVoiceProfileFromSpeakerId(speakerId);
   }
@@ -545,9 +548,9 @@ function startSession(mode, focus = null, methodId = "free", speakerId = resolve
     selectedSpeakerId: speakerId,
     speakerId: actualSpeakerId,
     voiceProfile: legacyVoiceProfileFromSpeakerId(actualSpeakerId),
-    audioSource: actualSpeakerId === SYSTEM_SPEAKER.id ? "system" : "azure",
-    audioProvider: actualSpeakerId === SYSTEM_SPEAKER.id ? "system" : "azure",
-    audioDelivery: actualSpeakerId === SYSTEM_SPEAKER.id ? "system" : "network",
+    audioSource: actualSpeakerId === SYSTEM_SPEAKER.id ? "system" : LOCAL_AUDIO_PROVIDER,
+    audioProvider: actualSpeakerId === SYSTEM_SPEAKER.id ? "system" : LOCAL_AUDIO_PROVIDER,
+    audioDelivery: actualSpeakerId === SYSTEM_SPEAKER.id ? "system" : LOCAL_AUDIO_PROVIDER,
     voiceVersion: 2,
     queue,
     index: 0,
@@ -693,11 +696,38 @@ async function speakScenario(scenario, keepAnswerVisible) {
   setStage("exerciseReady");
   $("preListenMethodPanel").querySelectorAll("input").forEach((input) => { input.disabled = true; });
 
+  if (session.selectedSpeakerId && session.selectedSpeakerId !== SYSTEM_SPEAKER.id && speakerCatalogMap.has(session.selectedSpeakerId)) {
+    try {
+      $("audioStatus").textContent = "正在准备本地三人声音频……";
+      const { url, delivery } = await fetchLocalVoiceAudio(scenario.id, session.selectedSpeakerId);
+      const source = delivery;
+      session.speakerId = session.selectedSpeakerId;
+      session.voiceProfile = legacyVoiceProfileFromSpeakerId(session.selectedSpeakerId);
+      session.audioSource = delivery;
+      session.audioProvider = LOCAL_AUDIO_PROVIDER;
+      session.audioDelivery = delivery;
+      session.voiceVersion = 2;
+      currentAudioUrl = url;
+      currentAudio = new Audio(url);
+      currentAudio.playbackRate = effectiveRate(scenario);
+      currentAudio.onended = finishAudio;
+      currentAudio.onerror = () => speakWithCloudOrDevice(scenario, true);
+      await currentAudio.play();
+      $("audioStatus").textContent = source === "local-cache" ? "正在播放缓存的本地人声音频……" : "正在播放本地人声音频……";
+      return;
+    } catch (error) {
+      console.warn("Local speech unavailable; trying cloud or device voice.", error);
+    }
+  }
+  speakWithCloudOrDevice(scenario, session.selectedSpeakerId !== SYSTEM_SPEAKER.id);
+}
+
+async function speakWithCloudOrDevice(scenario, fromLocalFailure = false) {
+  if (!session || currentScenario()?.id !== scenario.id) return;
   if (session.selectedSpeakerId && session.selectedSpeakerId !== SYSTEM_SPEAKER.id && voiceServiceState.available && speakerCatalogMap.has(session.selectedSpeakerId)) {
     try {
-      $("audioStatus").textContent = "正在准备自然工作语音……";
+      $("audioStatus").textContent = "正在准备云语音备用音频……";
       const { url, delivery } = await fetchVoiceAudio(scenario.id, session.selectedSpeakerId);
-      const source = delivery;
       session.speakerId = session.selectedSpeakerId;
       session.voiceProfile = legacyVoiceProfileFromSpeakerId(session.selectedSpeakerId);
       session.audioSource = delivery === "cache" ? "cache" : "azure";
@@ -710,13 +740,13 @@ async function speakScenario(scenario, keepAnswerVisible) {
       currentAudio.onended = finishAudio;
       currentAudio.onerror = () => speakWithDevice(scenario, true);
       await currentAudio.play();
-      $("audioStatus").textContent = source === "cache" ? "正在播放缓存的自然工作语音……" : "正在播放自然工作语音……";
+      $("audioStatus").textContent = delivery === "cache" ? "正在播放缓存的云语音……" : "正在播放云语音……";
       return;
     } catch (error) {
       console.warn("Cloud speech unavailable; using device voice.", error);
     }
   }
-  speakWithDevice(scenario, session.selectedSpeakerId !== SYSTEM_SPEAKER.id);
+  speakWithDevice(scenario, fromLocalFailure);
 }
 
 function speakWithDevice(scenario, fromCloudFailure = false) {
@@ -752,6 +782,20 @@ function speakWithDevice(scenario, fromCloudFailure = false) {
   speechSynthesis.speak(utterance);
 }
 
+function localAudioUrl(scenarioId, speakerId) {
+  return `./audio/scenarios/${encodeURIComponent(speakerId)}/${encodeURIComponent(scenarioId)}.mp3`;
+}
+
+async function fetchLocalVoiceAudio(scenarioId, speakerId) {
+  const url = localAudioUrl(scenarioId, speakerId);
+  if ("caches" in window) {
+    const cache = await caches.open(AUDIO_CACHE_NAME);
+    const cached = await cache.match(url);
+    if (cached) return { url, delivery: "local-cache" };
+  }
+  return { url, delivery: LOCAL_AUDIO_PROVIDER };
+}
+
 async function fetchVoiceAudio(scenarioId, speakerId) {
   const endpoint = settings.ttsEndpoint.replace(/\/$/, "");
   const url = `${endpoint}/v1/tts/${encodeURIComponent(scenarioId)}?profile=${encodeURIComponent(speakerId)}&v=${TTS_VERSION}`;
@@ -772,14 +816,27 @@ async function previewSpeaker(speakerId) {
   $("voiceSetupStatus").textContent = `\u6b63\u5728\u51c6\u5907\u201c${speaker.name}\u201d\u8bd5\u542c\u2026\u2026`;
   const previewScenario = SCENARIOS.find((item) => item.id === PREVIEW_SCENARIO_ID) || SCENARIOS[0];
   try {
-    if (!voiceServiceState.available || speakerId === SYSTEM_SPEAKER.id || !settings.ttsEndpoint) throw new Error("cloud preview unavailable");
-    const { url, delivery } = await fetchVoiceAudio(previewScenario.id, speakerId);
+    if (speakerId === SYSTEM_SPEAKER.id || !speakerCatalogMap.has(speakerId)) throw new Error("local preview unavailable");
+    const { url, delivery } = await fetchLocalVoiceAudio(previewScenario.id, speakerId);
     const source = delivery;
     currentAudioUrl = url;
     currentAudio = new Audio(url);
     currentAudio.onended = () => { if (button) button.disabled = false; };
+    currentAudio.onerror = async () => {
+      if (voiceServiceState.available && settings.ttsEndpoint) {
+        try {
+          const fallback = await fetchVoiceAudio(previewScenario.id, speakerId);
+          currentAudio = new Audio(fallback.url);
+          currentAudio.onended = () => { if (button) button.disabled = false; };
+          await currentAudio.play();
+          $("voiceSetupStatus").textContent = fallback.delivery === "cache" ? "试听来自云语音缓存。" : "试听来自安全语音代理。";
+        } catch (_error) {
+          if (button) button.disabled = false;
+        }
+      }
+    };
     await currentAudio.play();
-    $("voiceSetupStatus").textContent = source === "cache" ? "\u8bd5\u542c\u6765\u81ea\u672c\u5730\u7f13\u5b58\u3002" : "\u8bd5\u542c\u6765\u81ea\u5b89\u5168\u8bed\u97f3\u4ee3\u7406\u3002";
+    $("voiceSetupStatus").textContent = source === "local-cache" ? "试听来自本地音频缓存。" : "试听来自本地音频包。";
   } catch (error) {
     if (!("speechSynthesis" in window)) {
       $("voiceSetupStatus").textContent = "\u5f53\u524d\u6d4f\u89c8\u5668\u65e0\u6cd5\u8bd5\u7528\u8bbe\u5907\u8bed\u97f3\uff0c\u8bf7\u6539\u7528 Safari \u6216 Chrome\u3002";
@@ -1244,7 +1301,7 @@ function syncSettingsForm() {
   $("reminderInput").checked = Boolean(settings.reminders);
   $("reminderTimeInput").value = settings.reminderTime || "20:00";
   $("speakerIdInput").value = resolvePreferredSpeakerId();
-  $("speakerIdInput").disabled = !(voiceServiceState.available && speakerCatalog.length > 0);
+  $("speakerIdInput").disabled = !(speakerCatalog.length > 0);
   $("ttsEndpointInput").value = settings.ttsEndpoint || "";
 }
 
@@ -1254,7 +1311,7 @@ async function saveSettings() {
   settings.reminders = $("reminderInput").checked;
   settings.reminderTime = $("reminderTimeInput").value || "20:00";
   const selectedSpeakerId = $("speakerIdInput").value || resolvePreferredSpeakerId();
-  if (voiceServiceState.available && speakerCatalogMap.has(selectedSpeakerId)) {
+  if (speakerCatalogMap.has(selectedSpeakerId)) {
     settings.speakerId = selectedSpeakerId;
     settings.voiceProfile = legacyVoiceProfileFromSpeakerId(settings.speakerId);
   }

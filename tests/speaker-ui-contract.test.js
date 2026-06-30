@@ -74,7 +74,7 @@ function createAppRuntime({ fetchImpl, includeSpeechSynthesis = false, trainingC
     console,
     fetch: fetchImpl || (async () => ({ ok: false, json: async () => ({}) })),
     AbortController,
-    Audio: function Audio() { return { play: async () => {}, pause() {}, removeAttribute() {}, load() {} }; },
+    Audio: function Audio() { return { play: async function play() { this.onended?.(); }, pause() {}, removeAttribute() {}, load() {} }; },
     URL: { createObjectURL() { return "blob:test"; }, revokeObjectURL() {} },
     performance: { now() { return 0; } },
     setTimeout() { return 1; },
@@ -136,20 +136,20 @@ test("task 3 upgrades the browser contract to v2 cloud voice health checks", () 
   assert.match(app, /version\s*===\s*2|version\s*!==\s*2|Number\(.*version.*\)\s*===\s*2/s);
 });
 
-test("task 3 keeps web assets aligned on pwa v16 while preserving audio cache v2", () => {
-  assert.match(index, /href="\.\/manifest\.webmanifest\?v=16"/);
-  assert.match(index, /styles\.css\?v=16/);
-  assert.match(index, /training-core\.js\?v=16/);
-  assert.match(index, /voice-core\.js\?v=16/);
-  assert.match(index, /app\.js\?v=16/);
-  assert.match(manifest, /"start_url": "\.\/index\.html\?v=16"/);
-  assert.match(worker, /const CACHE_NAME = "listening-training-pwa-v16";/);
+test("task 3 keeps web assets aligned on pwa v17 while preserving audio cache v2", () => {
+  assert.match(index, /href="\.\/manifest\.webmanifest\?v=17"/);
+  assert.match(index, /styles\.css\?v=17/);
+  assert.match(index, /training-core\.js\?v=17/);
+  assert.match(index, /voice-core\.js\?v=17/);
+  assert.match(index, /app\.js\?v=17/);
+  assert.match(manifest, /"start_url": "\.\/index\.html\?v=17"/);
+  assert.match(worker, /const CACHE_NAME = "listening-training-pwa-v17";/);
   assert.match(worker, /const AUDIO_CACHE_NAME = "listening-training-audio-v2";/);
-  assert.match(worker, /\.\/index\.html\?v=16/);
-  assert.match(worker, /\.\/styles\.css\?v=16/);
-  assert.match(worker, /\.\/training-core\.js\?v=16/);
-  assert.match(worker, /\.\/voice-core\.js\?v=16/);
-  assert.match(worker, /\.\/app\.js\?v=16/);
+  assert.match(worker, /\.\/index\.html\?v=17/);
+  assert.match(worker, /\.\/styles\.css\?v=17/);
+  assert.match(worker, /\.\/training-core\.js\?v=17/);
+  assert.match(worker, /\.\/voice-core\.js\?v=17/);
+  assert.match(worker, /\.\/app\.js\?v=17/);
 });
 
 test("task 3 uses voices.json as the only cloud speaker catalog source", () => {
@@ -163,35 +163,39 @@ test("task 3 uses voices.json as the only cloud speaker catalog source", () => {
   assert.match(app, /return \[\];/);
 });
 
-test("task 3 keeps one explicit system fallback path and disables named speakers when cloud voice is unavailable", () => {
+test("local audio pack keeps named speakers selectable without cloud voice", () => {
   assert.match(app, /const SYSTEM_SPEAKER\s*=\s*Object\.freeze\(\s*\{[^}]*id:\s*"system"/s);
-  assert.match(app, /const cloudSpeakersReady = voiceServiceState\.available && speakerCatalog\.length > 0;/);
-  assert.match(app, /cloudSpeakersReady\s*\?\s*speakerCatalog\.map\(\(speaker\)\s*=>\s*\(\{\s*\.\.\.speaker,\s*available:\s*true,\s*disabled:\s*false\s*\}\)\)/s);
+  assert.match(app, /const LOCAL_AUDIO_PROVIDER = "local-pack";/);
+  assert.match(app, /function localAudioUrl\(/);
+  assert.match(app, /async function fetchLocalVoiceAudio\(/);
+  assert.match(app, /const namedSpeakersReady = speakerCatalog\.length > 0;/);
+  assert.match(app, /speakerCatalog\.map\(\(speaker\)\s*=>\s*\(\{\s*\.\.\.speaker,\s*available:\s*true,\s*disabled:\s*false/s);
   assert.match(app, /\{\s*\.\.\.SYSTEM_SPEAKER,\s*available:\s*true,\s*disabled:\s*false,\s*checked:\s*true\s*\}/s);
-  assert.match(app, /speakerCatalog\.map\(\(speaker\)\s*=>\s*\(\{\s*\.\.\.speaker,\s*available:\s*false,\s*disabled:\s*true\s*\}\)\)/s);
-  assert.match(app, /const options = cloudSpeakersReady \? speakerCatalog : \[SYSTEM_SPEAKER\];/);
-  assert.match(app, /select\.disabled = !cloudSpeakersReady/);
+  assert.match(app, /const options = namedSpeakersReady \? speakerCatalog : \[SYSTEM_SPEAKER\];/);
+  assert.match(app, /select\.disabled = !namedSpeakersReady/);
 });
 
 test("task 3 preview fallback guards browsers without speechSynthesis", () => {
   assert.match(app, /if\s*\(!\("speechSynthesis" in window\)\)\s*\{\s*\$\("voiceSetupStatus"\)\.textContent = .*?return;\s*\}/s);
 });
 
-test("runtime disables named speaker controls when cloud voice is unavailable", () => {
+test("runtime keeps named speaker controls enabled when cloud voice is unavailable", () => {
   const runtime = createAppRuntime();
   runtime.context.__speakerRuntime.setSpeakerState(speakerCatalog, { available: false, reason: "unreachable", endpoint: "", version: 2 });
 
   runtime.context.__speakerRuntime.updateSpeakerSelectOptions();
-  assert.equal(runtime.getElement("speakerIdInput").disabled, true);
-  assert.match(runtime.getElement("speakerIdInput").innerHTML, /value="system"/);
-  assert.doesNotMatch(runtime.getElement("speakerIdInput").innerHTML, /value="lin_xiao"/);
+  assert.equal(runtime.getElement("speakerIdInput").disabled, false);
+  assert.match(runtime.getElement("speakerIdInput").innerHTML, /value="lin_xiao"/);
+  assert.match(runtime.getElement("speakerIdInput").innerHTML, /value="chen_yu"/);
+  assert.match(runtime.getElement("speakerIdInput").innerHTML, /value="su_ning"/);
 
   runtime.context.__speakerRuntime.renderSpeakerChoices("lin_xiao");
   const html = runtime.getElement("speakerChoiceGrid").innerHTML;
-  assert.match(html, /value="system" checked/);
-  assert.match(html, /value="lin_xiao"[^>]*disabled/);
-  assert.match(html, /value="chen_yu"[^>]*disabled/);
-  assert.match(html, /value="su_ning"[^>]*disabled/);
+  assert.match(html, /value="lin_xiao" checked/);
+  assert.doesNotMatch(html, /value="lin_xiao"[^>]*disabled/);
+  assert.doesNotMatch(html, /value="chen_yu"[^>]*disabled/);
+  assert.doesNotMatch(html, /value="su_ning"[^>]*disabled/);
+  assert.match(html, /本地音频/);
 });
 
 test("runtime health check requires azure readiness and v2 contract", async () => {
@@ -217,14 +221,14 @@ test("runtime health check requires azure readiness and v2 contract", async () =
   assert.ok(["unavailable", "unhealthy"].includes(stale.reason));
 });
 
-test("runtime preview immediately restores the button when no speech synthesis fallback exists", async () => {
+test("runtime preview uses local speaker audio even when speech synthesis is unavailable", async () => {
   const runtime = createAppRuntime({ includeSpeechSynthesis: false });
   runtime.context.__speakerRuntime.setSpeakerState(speakerCatalog, { available: false, reason: "unreachable", endpoint: "", version: 2 }, { ttsEndpoint: "" });
 
   await runtime.context.__speakerRuntime.previewSpeaker("lin_xiao");
 
   assert.equal(runtime.previewButton.disabled, false);
-  assert.match(runtime.getElement("voiceSetupStatus").textContent, /无法试用设备语音/);
+  assert.match(runtime.getElement("voiceSetupStatus").textContent, /本地音频/);
 });
 
 test("runtime method progress renders actual-source filtering and excluded counts", () => {

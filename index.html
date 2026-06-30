@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="聆听训练" />
     <title>聆听训练</title>
-    <link rel="manifest" href="./manifest.webmanifest?v=16" />
+    <link rel="manifest" href="./manifest.webmanifest?v=17" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=16" />
+    <link rel="stylesheet" href="./styles.css?v=17" />
   </head>
   <body>
     <div class="app-shell">
@@ -81,9 +81,9 @@
             </div>
           </section>
           <section class="setup-section">
-            <div class="section-heading"><div><p class="eyebrow">普通话工作语音</p><h2>选择本次说话人</h2></div><span class="ai-voice-label">AI 生成语音</span></div>
+            <div class="section-heading"><div><p class="eyebrow">普通话工作语音</p><h2>选择本次说话人</h2></div><span class="ai-voice-label">本地音频包</span></div>
             <div class="setup-grid voice-choice-grid" id="speakerChoiceGrid"></div>
-            <p class="setup-status" id="voiceSetupStatus" aria-live="polite">正在检查云语音状态…</p>
+            <p class="setup-status" id="voiceSetupStatus" aria-live="polite">正在准备本地三人声音频…</p>
           </section>
           <button class="primary-button setup-start" id="confirmSetupButton">开始训练</button>
         </section>
@@ -165,8 +165,8 @@
           <section class="settings-card">
             <label><span><b>每周系统训练目标</b><small>默认每周三次</small></span><select id="weeklyGoalInput"><option value="2">2 次</option><option value="3">3 次</option><option value="4">4 次</option><option value="5">5 次</option></select></label>
             <label><span><b>设备朗读语速</b><small>自适应训练会在此基础上调整</small></span><select id="baseRateInput"><option value="0.85">舒缓</option><option value="0.92">自然偏慢</option><option value="1">自然</option></select></label>
-            <label><span><b>默认说话人</b><small>仅在云语音可用时记住并用于下次训练</small></span><select id="speakerIdInput"></select></label>
-            <label><span><b>语音代理地址</b><small>Cloudflare Worker HTTPS 地址；留空时使用设备语音</small></span><input id="ttsEndpointInput" type="url" inputmode="url" placeholder="https://example.workers.dev" /></label>
+            <label><span><b>默认说话人</b><small>使用本地三人声音频包，离线也可训练</small></span><select id="speakerIdInput"></select></label>
+            <label><span><b>云语音代理地址（可选）</b><small>仅作为本地音频缺失时的备用；留空不影响训练</small></span><input id="ttsEndpointInput" type="url" inputmode="url" placeholder="https://example.workers.dev" /></label>
             <label class="toggle-row"><span><b>训练提醒</b><small>按每周目标分散安排本地通知</small></span><input id="reminderInput" type="checkbox" /></label>
             <label><span><b>提醒时间</b><small>仅在开启训练提醒后生效</small></span><input id="reminderTimeInput" type="time" value="20:00" /></label>
           </section>
@@ -196,8 +196,8 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./training-core.js?v=16" charset="UTF-8"></script>
-    <script src="./voice-core.js?v=16" charset="UTF-8"></script>
-    <script src="./app.js?v=16" charset="UTF-8"></script>
+    <script src="./training-core.js?v=17" charset="UTF-8"></script>
+    <script src="./voice-core.js?v=17" charset="UTF-8"></script>
+    <script src="./app.js?v=17" charset="UTF-8"></script>
   </body>
 </html>

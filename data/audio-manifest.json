@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "provider": "local-pack",
+  "basePath": "./audio/scenarios",
+  "format": "mp3",
+  "speakers": ["lin_xiao", "chen_yu", "su_ning"],
+  "scenarios": [
+    "baseline-brief-1",
+    "baseline-progress-2",
+    "baseline-problem-3",
+    "baseline-meeting-4",
+    "task-handoff-1",
+    "feedback-1",
+    "progress-1",
+    "meeting-1",
+    "problem-2",
+    "task-handoff-3",
+    "meeting-3",
+    "feedback-3",
+    "chunk-brief-2",
+    "speed-update-2",
+    "response-risk-2",
+    "response-change-3"
+  ]
+}
