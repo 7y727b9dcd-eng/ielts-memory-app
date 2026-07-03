@@ -14,6 +14,29 @@ const CATALOGS = {
   all: "全部词库"
 };
 const HIGH_SCHOOL_CATALOG_URL = "./data/pep-highschool-2019.json";
+const MEMORY_METHODS = [
+  { id: "morphology", title: "词根词缀", short: "拆结构", evidence: "形态意识能把词义、拼写和发音连成更稳定的记忆。", builder: buildMorphologyContent },
+  { id: "phonetic", title: "音标拆读", short: "听音拼写", evidence: "先读出单词并看到拼写，有助于把发音、字形和意义绑定。", builder: buildPhoneticContent },
+  { id: "keyword", title: "关键词联想", short: "造画面", evidence: "关键词记忆法适合外语词汇的初次编码，尤其能提升即时回忆。", builder: buildKeywordImage },
+  { id: "sentence", title: "句子联想", short: "放进句子", evidence: "把单词放到语境中，能记住词义边界和真实用法。", builder: buildSentenceAssociation },
+  { id: "retrieval", title: "主动回忆", short: "先想后看", evidence: "提取练习会强化长期保持，比反复看更适合复习。", builder: buildRecallPrompt },
+  { id: "family", title: "词族联结", short: "一串记", evidence: "同根词和派生词能帮助迁移到未见过的新词。", builder: buildFamilyContent },
+  { id: "collocation", title: "搭配语境", short: "搭配输出", evidence: "搭配和典型场景能减少只会认不会用的问题。", builder: buildCollocationPrompt },
+  { id: "reverse", title: "中英反向回忆", short: "中文到英文", evidence: "反向提取能训练输出，适合写作和口语。", builder: buildReverseRecall },
+  { id: "dual", title: "双编码画面", short: "画面+文字", evidence: "文字和有意义的视觉表征结合，可以形成两条回忆线索。", builder: buildDualCoding },
+  { id: "loci", title: "地点定位法", short: "放到熟悉地点", evidence: "把信息放入固定空间路径，有助于按线索回忆。", builder: buildMethodOfLoci },
+  { id: "scene", title: "影视语境", short: "真实片段", evidence: "真实语境能补足语气、场景和使用限制。", builder: buildSceneContext }
+];
+const DEFAULT_MEMORY_METHOD_IDS = ["morphology", "phonetic", "keyword", "sentence", "retrieval", "family", "collocation", "reverse", "dual", "loci", "scene"];
+const ONBOARDING_STEPS = [
+  { title: "学习入口", tag: "HOME", body: "首页最醒目的“开始记忆单词”会按当前词库抽取今日新词；“只复习到期词”只处理遗忘曲线安排到今天的词。", actions: ["先选词库，再开始学习", "碎片时间优先点首页主按钮"] },
+  { title: "三阶段学习", tag: "LEARN", body: "新词先看释义和例句，再主动回忆，最后进入影视语境或跳过。每次反馈都会更新下次复习日期。", actions: ["不认识：今天继续出现", "模糊：缩短间隔", "认识：延长间隔"] },
+  { title: "记忆法设置", tag: "METHODS", body: "设置里可以开启或关闭每一种记忆法。学习页只显示你开启的方法，避免信息太多。", actions: ["建议保留主动回忆、词根词缀、句子联想", "抽象词可开启关键词联想和双编码画面"] },
+  { title: "词库切换", tag: "LIBRARY", body: "词库页和设置页都可以切换雅思、高中人教版或全部词库。选择某个词库后，学习、复习、抽查互不干扰。", actions: ["备考雅思时选雅思词库", "补高中基础时选高中人教版"] },
+  { title: "三周抽查", tag: "EXAM", body: "系统每 21 天保留一次抽查入口，混合释义选择、英文拼写和例句填空，满分 100 分。", actions: ["错词会回到复习队列", "可以只重测错词"] },
+  { title: "发音和影视语境", tag: "AUDIO", body: "单词旁的“听”会优先使用网络发音，失败时回到系统朗读。影视语境只保存合法公开视频链接和时间段。", actions: ["朗读用于纠正重音", "影视片段用于记语气和场景"] },
+  { title: "本地备份", tag: "DATA", body: "学习记录保存在当前设备浏览器或 App 内。换设备前先导出 JSON 备份，再在新设备恢复。", actions: ["定期导出备份", "重置数据前先确认已经备份"] }
+];
 
 const COMMON_ROOTS = {
   act: "做、行动", ag: "做、驱动", anim: "生命、精神", audi: "听", bio: "生命", cap: "抓住、拿", ceed: "走", cess: "走", ced: "走",
@@ -67,6 +90,7 @@ const elementIds = [
   "examBanner", "examBannerTitle", "examBannerText", "examBannerButton", "learningPanel", "examPanel",
   "searchInput", "catalogSelect", "filterSelect", "libraryCounter", "loadMoreLibraryButton", "libraryList", "levelBars", "masteryRate", "historyList", "examHistoryList",
   "dailyNewGoalInput", "dailyGoalInput", "activeCatalogInput", "autoSpeakInput", "videoEnabledInput", "autoPlayClipsInput", "nextExamSetting",
+  "memoryMethodSettings", "tutorialButton", "onboardingDialog", "onboardingContent", "onboardingProgress", "onboardingPrevButton", "onboardingNextButton", "onboardingSkipButton",
   "restoreFileInput", "wordDialog", "wordForm", "wordDialogTitle", "wordId", "wordText", "wordMeaning",
   "wordPhonetic", "wordCatalog", "wordAudioUrl", "wordTags", "wordExample", "mnemonicRoots", "mnemonicAssociation", "mnemonicFamily", "mnemonicSyllables",
   "importDialog", "importForm", "importText", "memoryDialog", "memoryWord", "memoryContent", "sceneDialog", "sceneWord", "sceneDescription", "sceneWordId",
@@ -80,6 +104,7 @@ let currentAudio = null;
 let autoSpeakTimer = null;
 let autoSpeakKey = "";
 let speakRequestId = 0;
+let onboardingIndex = 0;
 
 bindEvents();
 saveState();
@@ -87,6 +112,7 @@ syncLibraryCatalogWithActive();
 renderActiveView();
 ensureBundledCatalogs();
 registerServiceWorker();
+setTimeout(showOnboardingIfNeeded, 180);
 
 function bindEvents() {
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
@@ -103,6 +129,10 @@ function bindEvents() {
   document.getElementById("exportButton").addEventListener("click", exportBackup);
   document.getElementById("restoreButton").addEventListener("click", () => el.restoreFileInput.click());
   document.getElementById("resetButton").addEventListener("click", resetData);
+  el.tutorialButton.addEventListener("click", () => openOnboarding(true));
+  el.onboardingPrevButton.addEventListener("click", () => moveOnboarding(-1));
+  el.onboardingNextButton.addEventListener("click", () => moveOnboarding(1));
+  el.onboardingSkipButton.addEventListener("click", completeOnboarding);
   el.searchInput.addEventListener("input", resetLibraryWindow);
   el.catalogSelect.addEventListener("change", resetLibraryWindow);
   el.filterSelect.addEventListener("change", resetLibraryWindow);
@@ -134,7 +164,7 @@ function createDefaultState() {
     words: SAMPLE_WORDS.map((word) => createWord({ ...word, mnemonics: SAMPLE_MNEMONICS[word.text] })),
     clips: {}, history: [], exams: [], currentExam: null, lastExamResult: null, learningSession: null,
     examSchedule: { cycleStartedAt: started, nextExamAt: addDays(started, EXAM_INTERVAL_DAYS) },
-    settings: { dailyNewGoal: 10, dailyGoal: 30, activeCatalog: "ielts", autoSpeak: true, videoEnabled: true, autoPlayClips: true, highSchoolCatalogImported: false }
+    settings: { dailyNewGoal: 10, dailyGoal: 30, activeCatalog: "ielts", autoSpeak: true, videoEnabled: true, autoPlayClips: true, highSchoolCatalogImported: false, memoryMethods: DEFAULT_MEMORY_METHOD_IDS, onboardingSeen: false }
   };
 }
 
@@ -162,7 +192,9 @@ function normalizeState(input) {
       autoSpeak: Boolean(input.settings?.autoSpeak ?? true),
       videoEnabled: Boolean(input.settings?.videoEnabled ?? true),
       autoPlayClips: Boolean(input.settings?.autoPlayClips ?? true),
-      highSchoolCatalogImported: Boolean(input.settings?.highSchoolCatalogImported)
+      highSchoolCatalogImported: Boolean(input.settings?.highSchoolCatalogImported),
+      memoryMethods: normalizeMemoryMethods(input.settings?.memoryMethods),
+      onboardingSeen: Boolean(input.settings?.onboardingSeen)
     }
   };
   if (!output.words.length) output.words = fallback.words;
@@ -270,6 +302,46 @@ function analyzeWordParts(text) {
 function splitForSpelling(text) {
   const chunks = String(text || "").toLowerCase().match(/[^aeiouy]*[aeiouy]+(?:[^aeiouy](?![aeiouy])|$)*/g);
   return chunks?.filter(Boolean).join(" · ") || String(text || "");
+}
+
+function meaningHead(word) {
+  return String(word.meaning || "").split(/[；;，,。]/)[0]?.trim() || "核心释义";
+}
+
+function keywordCue(text) {
+  const word = String(text || "").toLowerCase();
+  const syllables = splitForSpelling(word).split(" · ").filter(Boolean);
+  return syllables.slice(0, 2).join(" + ") || word.slice(0, Math.min(4, word.length));
+}
+
+function visualCue(meaning) {
+  const text = String(meaning || "");
+  if (/增加|大量|多|rise|increase/i.test(text)) return "向上增长的箭头";
+  if (/减少|下降|少|decline/i.test(text)) return "向下收缩的箭头";
+  if (/解释|理解|说明/.test(text)) return "两个人之间的一座桥";
+  if (/可行|成功|有效/.test(text)) return "一条能走通的路";
+  if (/恶化|坏|污染/.test(text)) return "颜色逐渐变深的空气";
+  if (/连贯|条理/.test(text)) return "一条不断开的线";
+  return `能代表“${text || "这个意思"}”的一个简单符号`;
+}
+
+function extractPhrase(example, word) {
+  const text = String(example || "").trim();
+  if (!text) return `${word} + 一个名词`;
+  const parts = text.split(/\s+/);
+  const index = parts.findIndex((part) => part.toLowerCase().replace(/[^a-z-]/g, "") === word);
+  if (index < 0) return `${word} + 一个名词`;
+  return parts.slice(Math.max(0, index - 2), Math.min(parts.length, index + 3)).join(" ");
+}
+
+function normalizeMemoryMethods(value) {
+  const allowed = new Set(MEMORY_METHODS.map((method) => method.id));
+  if (!Array.isArray(value)) return DEFAULT_MEMORY_METHOD_IDS;
+  return uniqueStrings(value.filter((id) => allowed.has(id)));
+}
+
+function getEnabledMemoryMethods() {
+  return new Set(normalizeMemoryMethods(state.settings.memoryMethods));
 }
 
 function normalizeRecord(record) {
@@ -416,42 +488,165 @@ function renderPreviewStage(word, session) {
 }
 
 function renderMemoryMethods(word) {
-  const memory = word.mnemonics;
-  const methods = [
-    ["词根词缀", memory.roots],
-    ["音标拆读", buildPhoneticMemory(word, memory)],
-    ["句子联想", buildSentenceAssociation(word)],
-    ["主动回忆", buildRecallPrompt(word)],
-    ["词族联结", memory.family],
-    ["搭配语境", buildCollocationPrompt(word)],
-    ["中英反向回忆", buildReverseRecall(word)],
-    ["影视语境", (state.clips[word.id] || []).length ? `已保存 ${(state.clips[word.id] || []).length} 个5-20秒片段，第三阶段会直接播放。` : "尚未保存片段；第三阶段可进入影视搜索和添加流程。"]
-  ];
-  return `<section class="memory-methods"><div class="method-heading"><p class="eyebrow">MEMORY TOOLS</p><strong>八种记忆法</strong></div><div class="memory-method-grid">${methods.map(([title, content], index) => `<details class="memory-method" ${index === 0 ? "open" : ""}><summary><span>${index + 1}</span>${escapeHtml(title)}</summary><p>${escapeHtml(content)}</p></details>`).join("")}</div></section>`;
+  const enabled = getEnabledMemoryMethods();
+  const methods = MEMORY_METHODS.filter((method) => enabled.has(method.id));
+  if (!methods.length) return `<section class="memory-methods"><div class="empty">已在设置中关闭全部记忆法。</div></section>`;
+  return `<section class="memory-methods"><div class="method-heading"><p class="eyebrow">MEMORY TOOLS</p><strong>${methods.length} 种已开启</strong></div><div class="memory-method-grid">${methods.map((method, index) => renderMethodContent(method, word, index)).join("")}</div></section>`;
 }
 
-function buildPhoneticMemory(word, memory) {
-  return `${formatPhonetic(word)}；按 ${memory.syllables || splitForSpelling(word.text)} 分段朗读，再遮住单词拼写一遍。`;
+function renderMethodContent(method, word, index) {
+  const content = method.builder(word);
+  return `<details class="memory-method" ${index === 0 ? "open" : ""}><summary><span>${index + 1}</span><div><strong>${escapeHtml(method.title)}</strong><small>${escapeHtml(method.short)}</small></div></summary><div class="method-body"><p>${escapeHtml(content.summary)}</p><ul class="method-step-list">${content.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul><p class="method-evidence">${escapeHtml(content.evidence || method.evidence)}</p></div></details>`;
+}
+
+function buildMorphologyContent(word) {
+  const roots = word.mnemonics?.roots || analyzeWordParts(word.text);
+  const family = word.mnemonics?.family || buildWordFamily(word.text);
+  return {
+    summary: roots,
+    steps: [
+      `先圈出 ${word.text} 中最像词根、前缀或后缀的部分。`,
+      `把结构翻译成一句中文：${roots.replace(/→/g, "所以")}`,
+      `顺手连到词族：${family}`
+    ],
+    evidence: "适合长词和学术词；词根词缀能帮助你猜未见过的派生词。"
+  };
+}
+
+function buildPhoneticContent(word) {
+  const syllables = word.mnemonics?.syllables || splitForSpelling(word.text);
+  return {
+    summary: `${formatPhonetic(word)}；分段读作：${syllables}`,
+    steps: [
+      `点单词旁“听”，跟读 ${word.text} 两遍。`,
+      `按 ${syllables} 分段拼写，重点检查重音附近的元音。`,
+      `遮住英文，只看音标和中文，默写一遍 ${word.text}。`
+    ],
+    evidence: "适合拼写不稳的词；把声音、字母和意义同时绑定。"
+  };
 }
 
 function buildSentenceAssociation(word) {
   const example = word.example || `I can use ${word.text} in a clear IELTS sentence.`;
-  return `把单词放进句子记：${example} 先读完整句，再闭眼回忆这个词在句子里解决了什么意思。`;
+  return {
+    summary: `核心句：${example}`,
+    steps: [
+      `先读完整句，再只读含 ${word.text} 的短语。`,
+      `把中文释义“${meaningHead(word)}”放回句子里，确认它在句中承担的意思。`,
+      `自己改写一个句子：In my IELTS answer, ${word.text} can describe ${meaningHead(word)}.`
+    ],
+    evidence: "适合会认不会用的词；语境能限制词义，减少中文直译。"
+  };
 }
 
 function buildRecallPrompt(word) {
-  const hint = String(word.meaning || "").split(/[；;，,。]/)[0] || "核心释义";
-  return `主动回忆顺序：听发音 -> 说出 ${hint} -> 自己造一个短句 -> 最后再看答案。不要一上来盯中文释义。`;
+  const hint = meaningHead(word);
+  return {
+    summary: `闭眼提取顺序：发音 -> 拼写 -> ${hint} -> 例句。`,
+    steps: [
+      `先不要看答案，听发音后说出 ${word.text} 的中文核心义。`,
+      `在心里拼出 ${word.text}，再打开答案对照。`,
+      `如果错了，点“不认识”；如果只想起一半，点“模糊”。`
+    ],
+    evidence: "主动回忆是复习核心；先提取再看答案，比反复看更能保持长期记忆。"
+  };
 }
 
 function buildCollocationPrompt(word) {
   const text = String(word.text || "").toLowerCase();
-  return `搭配语境：记录 ${text} 前后常见的名词、动词或介词；复习时说出一个“${text} + 场景”的短语。`;
+  const head = meaningHead(word);
+  return {
+    summary: `常用搭配模板：${text} + noun / be ${text} in + 场景。`,
+    steps: [
+      `从例句中抽一个搭配：${extractPhrase(word.example, text)}`,
+      `造一个雅思场景短语：${text} evidence / ${text} increase / ${text} solution。`,
+      `复习时不要只说中文，要说出一个完整搭配来表达“${head}”。`
+    ],
+    evidence: "适合写作和口语；搭配比单个中文释义更接近真实输出。"
+  };
 }
 
 function buildReverseRecall(word) {
-  const firstMeaning = String(word.meaning || "").split(/[；;，,。]/)[0] || "中文释义";
-  return `中英反向：看到“${firstMeaning}”先拼出 ${word.text}，再听一遍发音检查重音和拼写。`;
+  const firstMeaning = meaningHead(word);
+  return {
+    summary: `看到“${firstMeaning}”时，目标输出是 ${word.text}。`,
+    steps: [
+      `只看中文“${firstMeaning}”，先拼出英文。`,
+      `再说一个短句：This word means ${firstMeaning}.`,
+      `最后点“听”检查发音，确认重音和拼写没有分家。`
+    ],
+    evidence: "适合写作输出；从中文到英文的提取能减少“看得懂但写不出”。"
+  };
+}
+
+function buildFamilyContent(word) {
+  const family = word.mnemonics?.family || buildWordFamily(word.text);
+  return {
+    summary: family,
+    steps: [
+      `把 ${word.text} 放在词族中心，旁边写名词、动词、形容词或副词形式。`,
+      `复习时说出至少一个同族词，并解释词性变化。`,
+      `遇到同根新词时先猜大意，再查证。`
+    ],
+    evidence: "适合同根词多的学术词；词族能把单词从一个点变成一张网。"
+  };
+}
+
+function buildKeywordImage(word) {
+  const keyword = keywordCue(word.text);
+  const head = meaningHead(word);
+  return {
+    summary: `关键词：${keyword}；画面：把“${keyword}”和“${head}”强行放进同一张夸张图片。`,
+    steps: [
+      `先读 ${word.text}，抓住声音最突出的部分：${keyword}。`,
+      `想象一个画面：${keyword} 正在表现“${head}”。`,
+      `回忆时先想画面，再从画面跳回 ${word.text}。`
+    ],
+    evidence: "适合抽象词初次记忆；画面越具体，回忆线索越清楚。"
+  };
+}
+
+function buildDualCoding(word) {
+  const head = meaningHead(word);
+  return {
+    summary: `文字线索：${word.text} = ${head}；视觉线索：画一个能代表“${head}”的小图标。`,
+    steps: [
+      `在脑中画一个简单图：${visualCue(head)}。`,
+      `把 ${word.text} 写在图旁边，而不是单独背中文。`,
+      `复习时先看图，再说英文和例句。`
+    ],
+    evidence: "双编码不是随便配图；图必须能解释词义，才不会增加负担。"
+  };
+}
+
+function buildMethodOfLoci(word) {
+  const head = meaningHead(word);
+  return {
+    summary: `地点：把 ${word.text} 放到你熟悉的“门口-书桌-床边”路线中。`,
+    steps: [
+      `选择固定地点：门口代表今天的新词第一组。`,
+      `想象门口贴着 ${word.text}，旁边发生“${head}”的场景。`,
+      `晚上复盘时沿路线走一遍，依次说出英文、中文和例句。`
+    ],
+    evidence: "适合一次学多个词；固定空间路径能给抽象信息增加回忆顺序。"
+  };
+}
+
+function buildSceneContext(word) {
+  const clips = state.clips[word.id] || [];
+  return {
+    summary: clips.length ? `已保存 ${clips.length} 个 5-20 秒片段，可用真实语气巩固。` : "尚未保存片段；可在影视语境里搜索并保存公开视频片段。",
+    steps: clips.length ? [
+      `播放第一个片段，听出 ${word.text} 出现的位置。`,
+      "暂停后复述字幕，不看中文解释。",
+      "把片段中的语气或场景写成一句自己的例句。"
+    ] : [
+      "点“影视语境”，打开搜索来源。",
+      "保存公开视频链接和 5-20 秒时间段。",
+      "下次学习时用片段做场景回忆。"
+    ],
+    evidence: "适合口语、听力和语感；真实场景能补充书面例句缺少的语气。"
+  };
 }
 
 function renderRecallStage(word, session, isReview) {
@@ -884,10 +1079,51 @@ function renderStats() {
 
 function renderSettings() {
   el.dailyNewGoalInput.value = state.settings.dailyNewGoal; el.dailyGoalInput.value = state.settings.dailyGoal; el.activeCatalogInput.value = state.settings.activeCatalog; el.autoSpeakInput.checked = state.settings.autoSpeak; el.videoEnabledInput.checked = state.settings.videoEnabled; el.autoPlayClipsInput.checked = state.settings.autoPlayClips; el.nextExamSetting.textContent = `当前学习：${activeCatalogLabel()}；下一场正式抽查：${formatDateKey(state.examSchedule.nextExamAt)}`;
+  renderMemoryMethodSettings();
 }
 
 function saveSettings(event) {
-  event.preventDefault(); const previousCatalog = state.settings.activeCatalog; state.settings.dailyNewGoal = clamp(Number(el.dailyNewGoalInput.value) || 10, 1, 50); state.settings.dailyGoal = clamp(Number(el.dailyGoalInput.value) || 30, 1, 300); state.settings.activeCatalog = normalizeCatalog(el.activeCatalogInput.value, true); if (previousCatalog !== state.settings.activeCatalog) { state.learningSession = null; syncLibraryCatalogWithActive(); resetLibraryWindow(); } state.settings.autoSpeak = el.autoSpeakInput.checked; state.settings.videoEnabled = el.videoEnabledInput.checked; state.settings.autoPlayClips = el.autoPlayClipsInput.checked; saveState(); renderActiveView(); showToast(`已切换到${activeCatalogLabel()}`);
+  event.preventDefault(); const previousCatalog = state.settings.activeCatalog; state.settings.dailyNewGoal = clamp(Number(el.dailyNewGoalInput.value) || 10, 1, 50); state.settings.dailyGoal = clamp(Number(el.dailyGoalInput.value) || 30, 1, 300); state.settings.activeCatalog = normalizeCatalog(el.activeCatalogInput.value, true); if (previousCatalog !== state.settings.activeCatalog) { state.learningSession = null; syncLibraryCatalogWithActive(); resetLibraryWindow(); } state.settings.autoSpeak = el.autoSpeakInput.checked; state.settings.videoEnabled = el.videoEnabledInput.checked; state.settings.autoPlayClips = el.autoPlayClipsInput.checked; state.settings.memoryMethods = readEnabledMemoryMethods(); saveState(); renderActiveView(); showToast(`已保存，当前学习：${activeCatalogLabel()}`);
+}
+
+function renderMemoryMethodSettings() {
+  const enabled = getEnabledMemoryMethods();
+  el.memoryMethodSettings.innerHTML = MEMORY_METHODS.map((method) => `<label class="toggle-label memory-toggle"><input type="checkbox" name="memoryMethod" value="${escapeHtml(method.id)}" ${enabled.has(method.id) ? "checked" : ""} /><span><strong>${escapeHtml(method.title)}</strong><small>${escapeHtml(method.short)} · ${escapeHtml(method.evidence)}</small></span></label>`).join("");
+}
+
+function readEnabledMemoryMethods() {
+  return [...el.memoryMethodSettings.querySelectorAll('input[name="memoryMethod"]:checked')].map((input) => input.value);
+}
+
+function showOnboardingIfNeeded() {
+  if (!state.settings.onboardingSeen) openOnboarding(false);
+}
+
+function openOnboarding(fromSettings = false) {
+  onboardingIndex = 0;
+  renderOnboarding();
+  el.onboardingSkipButton.textContent = fromSettings ? "关闭" : "先跳过";
+  el.onboardingDialog.showModal();
+}
+
+function renderOnboarding() {
+  const step = ONBOARDING_STEPS[onboardingIndex];
+  el.onboardingProgress.textContent = `${onboardingIndex + 1}/${ONBOARDING_STEPS.length}`;
+  el.onboardingPrevButton.disabled = onboardingIndex === 0;
+  el.onboardingNextButton.textContent = onboardingIndex === ONBOARDING_STEPS.length - 1 ? "开始使用" : "下一步";
+  el.onboardingContent.innerHTML = `<article class="tutorial-card"><p class="eyebrow">${escapeHtml(step.tag)}</p><h2>${escapeHtml(step.title)}</h2><p>${escapeHtml(step.body)}</p><ul class="tutorial-steps">${step.actions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></article>`;
+}
+
+function moveOnboarding(delta) {
+  if (onboardingIndex === ONBOARDING_STEPS.length - 1 && delta > 0) return completeOnboarding();
+  onboardingIndex = clamp(onboardingIndex + delta, 0, ONBOARDING_STEPS.length - 1);
+  renderOnboarding();
+}
+
+function completeOnboarding() {
+  state.settings.onboardingSeen = true;
+  saveState();
+  el.onboardingDialog.close();
 }
 
 function exportBackup() {
