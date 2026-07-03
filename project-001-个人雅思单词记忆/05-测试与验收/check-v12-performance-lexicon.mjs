@@ -27,7 +27,7 @@ const checks = [
   ["在线音频兜底源存在", app.includes("dict.youdao.com/dictvoice")],
   ["发音优先播放网络音频", app.includes("playWordAudio")],
   ["词根记忆法使用扩展词根表", app.includes("COMMON_ROOTS")],
-  ["资源版本已升级", index.includes("app.js?v=12") && sw.includes("word-tuo-pwa-v12")]
+  ["资源版本已升级", index.includes("app.js?v=13") && sw.includes("word-tuo-pwa-v13")]
 ];
 
 const failed = checks.filter(([, ok]) => !ok);
@@ -36,4 +36,4 @@ if (failed.length) {
   process.exit(1);
 }
 
-console.log("PASS v12 performance and lexicon feature");
+console.log("PASS performance and lexicon feature");

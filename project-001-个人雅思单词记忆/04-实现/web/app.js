@@ -76,6 +76,10 @@ const el = Object.fromEntries(elementIds.map((id) => [id, document.getElementByI
 let libraryVisibleCount = LIBRARY_PAGE_SIZE;
 let librarySignature = "";
 const lexiconRequests = new Map();
+let currentAudio = null;
+let autoSpeakTimer = null;
+let autoSpeakKey = "";
+let speakRequestId = 0;
 
 bindEvents();
 saveState();
@@ -314,6 +318,7 @@ function renderActiveView() {
 }
 
 function switchView(name) {
+  stopSpeaking();
   activeView = name;
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
@@ -323,6 +328,7 @@ function switchView(name) {
 }
 
 function setLearnMode(mode) {
+  stopSpeaking();
   activeLearnMode = mode;
   document.querySelectorAll("[data-learn-mode]").forEach((button) => button.classList.toggle("active", button.dataset.learnMode === mode));
   renderLearnArea();
@@ -402,39 +408,67 @@ function sessionHeader(session, labels) {
 }
 
 function renderPreviewStage(word, session) {
-  ensureWordLexicon(word, { rerender: true });
-  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","scene"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p><p class="audio-status">${word.audioUrl ? "已接入网络真人发音" : "朗读时会自动联网补充发音"}</p></div><div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句，可在词库中补充。")}</blockquote></div>${renderMemoryMethods(word)}<div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="toRecallButton">我看完了，开始回忆</button></div></article>`;
-  document.getElementById("sessionSpeakButton").addEventListener("click", () => speakWord(word));
-  document.getElementById("toRecallButton").addEventListener("click", () => { session.stage = "recall"; session.answerRevealed = false; saveState(); renderLearnArea(); });
-  if (state.settings.autoSpeak) setTimeout(() => speakWord(word), 120);
+  ensureWordLexicon(word, { rerender: false });
+  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","scene"])}<div class="learning-word"><div class="learning-word-main"><h2>${escapeHtml(word.text)}</h2><button class="inline-audio-button" id="wordSpeakButton" type="button" aria-label="朗读 ${escapeHtml(word.text)}" title="朗读">听</button></div><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p><p class="audio-status">${word.audioUrl ? "已接入网络真人发音" : "朗读时会自动联网补充发音"}</p></div><div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句，可在词库中补充。")}</blockquote></div>${renderMemoryMethods(word)}<div class="session-tools"><button class="primary-button" id="toRecallButton">我看完了，开始回忆</button></div></article>`;
+  document.getElementById("wordSpeakButton").addEventListener("click", () => speakWord(word));
+  document.getElementById("toRecallButton").addEventListener("click", () => { stopSpeaking(); session.stage = "recall"; session.answerRevealed = false; saveState(); renderLearnArea(); });
+  if (state.settings.autoSpeak) scheduleAutoSpeak(word, sessionSpeakKey(session, word));
 }
 
 function renderMemoryMethods(word) {
   const memory = word.mnemonics;
   const methods = [
     ["词根词缀", memory.roots],
-    ["联想钩子", memory.association],
+    ["音标拆读", buildPhoneticMemory(word, memory)],
+    ["句子联想", buildSentenceAssociation(word)],
+    ["主动回忆", buildRecallPrompt(word)],
     ["词族联结", memory.family],
-    ["音节拼写", memory.syllables],
-    ["影视语境", (state.clips[word.id] || []).length ? `已保存 ${(state.clips[word.id] || []).length} 个5–20秒片段，第三阶段会直接播放。` : "尚未保存片段；第三阶段可进入影视搜索和添加流程。"]
+    ["搭配语境", buildCollocationPrompt(word)],
+    ["中英反向回忆", buildReverseRecall(word)],
+    ["影视语境", (state.clips[word.id] || []).length ? `已保存 ${(state.clips[word.id] || []).length} 个5-20秒片段，第三阶段会直接播放。` : "尚未保存片段；第三阶段可进入影视搜索和添加流程。"]
   ];
-  return `<section class="memory-methods"><div class="method-heading"><p class="eyebrow">MEMORY TOOLS</p><strong>五种记忆法</strong></div><div class="memory-method-grid">${methods.map(([title, content], index) => `<details class="memory-method" ${index === 0 ? "open" : ""}><summary><span>${index + 1}</span>${escapeHtml(title)}</summary><p>${escapeHtml(content)}</p></details>`).join("")}</div></section>`;
+  return `<section class="memory-methods"><div class="method-heading"><p class="eyebrow">MEMORY TOOLS</p><strong>八种记忆法</strong></div><div class="memory-method-grid">${methods.map(([title, content], index) => `<details class="memory-method" ${index === 0 ? "open" : ""}><summary><span>${index + 1}</span>${escapeHtml(title)}</summary><p>${escapeHtml(content)}</p></details>`).join("")}</div></section>`;
+}
+
+function buildPhoneticMemory(word, memory) {
+  return `${formatPhonetic(word)}；按 ${memory.syllables || splitForSpelling(word.text)} 分段朗读，再遮住单词拼写一遍。`;
+}
+
+function buildSentenceAssociation(word) {
+  const example = word.example || `I can use ${word.text} in a clear IELTS sentence.`;
+  return `把单词放进句子记：${example} 先读完整句，再闭眼回忆这个词在句子里解决了什么意思。`;
+}
+
+function buildRecallPrompt(word) {
+  const hint = String(word.meaning || "").split(/[；;，,。]/)[0] || "核心释义";
+  return `主动回忆顺序：听发音 -> 说出 ${hint} -> 自己造一个短句 -> 最后再看答案。不要一上来盯中文释义。`;
+}
+
+function buildCollocationPrompt(word) {
+  const text = String(word.text || "").toLowerCase();
+  return `搭配语境：记录 ${text} 前后常见的名词、动词或介词；复习时说出一个“${text} + 场景”的短语。`;
+}
+
+function buildReverseRecall(word) {
+  const firstMeaning = String(word.meaning || "").split(/[；;，,。]/)[0] || "中文释义";
+  return `中英反向：看到“${firstMeaning}”先拼出 ${word.text}，再听一遍发音检查重音和拼写。`;
 }
 
 function renderRecallStage(word, session, isReview) {
-  ensureWordLexicon(word, { rerender: true });
-  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","cloze"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p></div>${session.answerRevealed ? `<div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句")}</blockquote></div><div class="rating-actions"><button class="again-button" data-quality="1">不认识<small>重新学习</small></button><button class="hard-button" data-quality="3">模糊<small>缩短间隔</small></button><button class="good-button" data-quality="5">认识<small>增加间隔</small></button></div>` : `<div class="learning-answer"><p>先在心里说出中文释义，再显示答案。</p></div><div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="revealAnswerButton">显示答案</button></div>`}</article>`;
-  document.getElementById("sessionSpeakButton")?.addEventListener("click", () => speakWord(word));
-  document.getElementById("revealAnswerButton")?.addEventListener("click", () => { session.answerRevealed = true; saveState(); renderLearnArea(); });
+  ensureWordLexicon(word, { rerender: false });
+  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","cloze"])}<div class="learning-word"><div class="learning-word-main"><h2>${escapeHtml(word.text)}</h2><button class="inline-audio-button" id="wordSpeakButton" type="button" aria-label="朗读 ${escapeHtml(word.text)}" title="朗读">听</button></div><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p></div>${session.answerRevealed ? `<div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句")}</blockquote></div><div class="rating-actions"><button class="again-button" data-quality="1">不认识<small>重新学习</small></button><button class="hard-button" data-quality="3">模糊<small>缩短间隔</small></button><button class="good-button" data-quality="5">认识<small>增加间隔</small></button></div>` : `<div class="learning-answer"><p>先在心里说出中文释义，再显示答案。系统会按遗忘曲线安排下次复习。</p></div><div class="session-tools"><button class="primary-button" id="revealAnswerButton">显示答案</button></div>`}</article>`;
+  document.getElementById("wordSpeakButton")?.addEventListener("click", () => speakWord(word));
+  document.getElementById("revealAnswerButton")?.addEventListener("click", () => { stopSpeaking(); session.answerRevealed = true; saveState(); renderLearnArea(); });
   document.querySelectorAll("[data-quality]").forEach((button) => button.addEventListener("click", () => {
     const quality = Number(button.dataset.quality);
     if (isReview) { applyReview(word, quality, "review"); advanceSession(); }
     else { session.pendingQuality = quality; session.stage = "scene"; session.clozeChecked = false; session.clozeCorrect = false; saveState(); renderLearnArea(); }
   }));
-  if (!session.answerRevealed && state.settings.autoSpeak) setTimeout(() => speakWord(word), 120);
+  if (!session.answerRevealed && state.settings.autoSpeak) scheduleAutoSpeak(word, sessionSpeakKey(session, word));
 }
 
 function renderSceneStage(word, session) {
+  stopSpeaking();
   const clips = state.clips[word.id] || [];
   if (!clips.length) {
     el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","scene"])}<div><p class="eyebrow">VIDEO CONTEXT</p><h2>用影视场景记住它</h2></div><div class="scene-learning-empty"><div class="scene-icon">▶</div><h3>还没有 ${escapeHtml(word.text)} 的影视片段</h3><p>先搜索并保存一个5–20秒公开视频片段。下次学习时会直接在这里播放，不再做普通例句填空。</p></div><div class="session-tools stacked-mobile"><button class="secondary-button" id="skipSceneButton">本词先跳过影视</button><button class="primary-button" id="findSceneButton">查找并添加片段</button></div></article>`;
@@ -454,6 +488,7 @@ function renderSceneStage(word, session) {
 function advanceSession() {
   const session = state.learningSession;
   if (!session) return;
+  stopSpeaking();
   session.index += 1; session.stage = session.mode === "new" ? "preview" : "recall"; session.answerRevealed = false; session.pendingQuality = 3; session.clozeChecked = false; session.clozeCorrect = false;
   if (session.index >= session.wordIds.length) state.learningSession = null;
   saveState(); renderAll(); renderLearnArea();
@@ -597,7 +632,7 @@ function renderWordList(container, words, compact) {
     const item = document.createElement("li"); item.className = "word-item";
     const sceneButton = state.settings.videoEnabled ? `<button class="secondary-button" data-action="scene" data-id="${word.id}">影视语境</button>` : "";
     const catalogPills = normalizeCatalogs(word.catalogs || [word.catalog]).map((catalog) => `<span class="pill catalog-pill">${escapeHtml(catalogLabel(catalog))}</span>`).join("");
-    item.innerHTML = `<div><h3>${escapeHtml(word.text)}</h3><p>${escapeHtml(word.meaning)}</p><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p><div class="word-meta">${catalogPills}<span class="pill">${word.audioUrl ? "真人发音" : "待补音频"}</span><span class="pill">${statusLabel(word.status)}</span><span class="pill">${word.status === "new" ? "未安排" : formatDue(word.nextReview)}</span>${word.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div></div>${compact ? "" : `<div class="item-actions"><button class="secondary-button" data-action="speak" data-id="${word.id}">发音</button><button class="secondary-button" data-action="memory" data-id="${word.id}">记忆法</button>${sceneButton}<button class="secondary-button" data-action="edit" data-id="${word.id}">编辑</button><button class="danger-button" data-action="delete" data-id="${word.id}">删除</button></div>`}`;
+    item.innerHTML = `<div><div class="word-title-row"><h3>${escapeHtml(word.text)}</h3><button class="inline-audio-button small" data-action="speak" data-id="${word.id}" type="button" aria-label="朗读 ${escapeHtml(word.text)}" title="朗读">听</button></div><p>${escapeHtml(word.meaning)}</p><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p><div class="word-meta">${catalogPills}<span class="pill">${word.audioUrl ? "真人发音" : "待补音频"}</span><span class="pill">${statusLabel(word.status)}</span><span class="pill">${word.status === "new" ? "未安排" : formatDue(word.nextReview)}</span>${word.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div></div>${compact ? "" : `<div class="item-actions"><button class="secondary-button" data-action="memory" data-id="${word.id}">记忆法</button>${sceneButton}<button class="secondary-button" data-action="edit" data-id="${word.id}">编辑</button><button class="danger-button" data-action="delete" data-id="${word.id}">删除</button></div>`}`;
     container.append(item);
   });
   container.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => handleWordAction(button.dataset.action, button.dataset.id)));
@@ -613,7 +648,7 @@ function handleWordAction(action, id) {
 }
 
 function openMemoryDialog(word) {
-  el.memoryWord.textContent = `${word.text} · 五种记忆法`;
+  el.memoryWord.textContent = `${word.text} · 八种记忆法`;
   el.memoryContent.innerHTML = renderMemoryMethods(word);
   el.memoryDialog.showModal();
 }
@@ -885,20 +920,60 @@ function learningStreak() { const days = new Set(state.history.map((record) => r
 function isExamDue() { return todayKey() >= state.examSchedule.nextExamAt; }
 
 async function speakWord(word) {
+  const requestId = ++speakRequestId;
   const enriched = await ensureWordLexicon(word);
+  if (requestId !== speakRequestId) return;
   if (enriched?.audioUrl) return playWordAudio(enriched.audioUrl, enriched.text);
   speak(word.text);
 }
 function playWordAudio(url, fallbackText) {
+  stopSpeaking();
   try {
     const audio = new Audio(url);
+    currentAudio = audio;
     audio.preload = "auto";
+    audio.addEventListener("ended", () => { if (currentAudio === audio) currentAudio = null; }, { once: true });
     audio.play().catch(() => speak(fallbackText));
   } catch {
     speak(fallbackText);
   }
 }
-function speak(text) { if (!("speechSynthesis" in window)) return showToast("当前环境不支持朗读"); speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = "en-US"; utterance.rate = .86; speechSynthesis.speak(utterance); }
+function speak(text) {
+  stopSpeaking();
+  if (!("speechSynthesis" in window)) return showToast("当前环境不支持朗读");
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-US";
+  utterance.rate = .86;
+  speechSynthesis.speak(utterance);
+}
+function stopSpeaking() {
+  speakRequestId += 1;
+  if (autoSpeakTimer) {
+    clearTimeout(autoSpeakTimer);
+    autoSpeakTimer = null;
+  }
+  autoSpeakKey = "";
+  if (currentAudio) {
+    try {
+      currentAudio.pause();
+      currentAudio.removeAttribute("src");
+      currentAudio.load();
+    } catch { /* ignore audio cleanup failures */ }
+    currentAudio = null;
+  }
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+function scheduleAutoSpeak(word, key) {
+  if (autoSpeakTimer) clearTimeout(autoSpeakTimer);
+  autoSpeakKey = key;
+  autoSpeakTimer = setTimeout(() => {
+    autoSpeakTimer = null;
+    if (activeView === "learn" && autoSpeakKey === key) speakWord(word);
+  }, 180);
+}
+function sessionSpeakKey(session, word) {
+  return `${session.mode}:${session.index}:${session.stage}:${word.id}:${session.answerRevealed ? "shown" : "hidden"}`;
+}
 async function ensureWordLexicon(word, { rerender = false } = {}) {
   if (!word || word.audioUrl && word.phonetic) return word;
   const key = word.text.toLowerCase();

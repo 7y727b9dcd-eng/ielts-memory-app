@@ -1,11 +1,11 @@
-const CACHE_NAME = "word-tuo-pwa-v12";
+const CACHE_NAME = "word-tuo-pwa-v13";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=12",
-  "./app.js?v=12",
+  "./styles.css?v=13",
+  "./app.js?v=13",
   "./data/pep-highschool-2019.json",
-  "./data/pep-highschool-2019.js?v=12",
+  "./data/pep-highschool-2019.js?v=13",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",

@@ -56,6 +56,8 @@ h3 { margin-bottom: 5px; }
 .word-list, .history-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
 .word-item { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 7px; padding: 14px; background: white; }
 .word-item p { margin: 0; color: var(--muted); line-height: 1.45; }
+.word-title-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.word-title-row h3 { margin-bottom: 4px; overflow-wrap: anywhere; }
 .word-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
 .pill { border-radius: 999px; padding: 4px 7px; background: var(--soft); color: var(--muted); font-size: 10px; }
 .item-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 270px; }
@@ -78,7 +80,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .stage-line span { height: 5px; border-radius: 999px; background: var(--line); }
 .stage-line span.active { background: var(--green); }
 .learning-word { padding: 24px 0 10px; text-align: center; }
+.learning-word-main { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
 .learning-word h2 { font-size: clamp(38px, 12vw, 58px); overflow-wrap: anywhere; }
+.inline-audio-button { flex: 0 0 auto; width: 46px; min-height: 46px; border: 1px solid var(--line); border-radius: 50%; padding: 0; background: var(--green-soft); color: var(--green-dark); font-size: 14px; font-weight: 850; }
+.inline-audio-button.small { width: 38px; min-height: 38px; font-size: 12px; }
 .phonetic { margin: 8px 0 0; color: var(--muted); font-size: 16px; }
 .audio-status { margin: 7px 0 0; color: var(--green); font-size: 12px; }
 .learning-answer { padding: 18px; border-radius: 7px; background: var(--soft); }
