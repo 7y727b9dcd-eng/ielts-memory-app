@@ -1,0 +1,65 @@
+name: Build WordTUO Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "project-001-个人雅思单词记忆/04-实现/web/**"
+      - "project-001-个人雅思单词记忆/04-实现/android/**"
+      - ".github/workflows/build-word-tuo-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      - name: Stage web resources into android_asset
+        run: |
+          APP_ROOT="project-001-个人雅思单词记忆"
+          rm -rf "$APP_ROOT/04-实现/android/app/src/main/assets/web"
+          mkdir -p "$APP_ROOT/04-实现/android/app/src/main/assets/web"
+          cp -R "$APP_ROOT/04-实现/web/." "$APP_ROOT/04-实现/android/app/src/main/assets/web/"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Build debug APK
+        working-directory: project-001-个人雅思单词记忆/04-实现/android
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon 2>&1 | tee word-tuo-android-build.log
+      - name: Prepare APK
+        run: |
+          cp "project-001-个人雅思单词记忆/04-实现/android/app/build/outputs/apk/debug/app-debug.apk" WordTUO-Android.apk
+      - name: Upload artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WordTUO-Android
+          path: WordTUO-Android.apk
+          if-no-files-found: error
+      - name: Publish build result branch
+        if: always()
+        run: |
+          mkdir -p /tmp/word-tuo-apk-output
+          cp "project-001-个人雅思单词记忆/04-实现/android/word-tuo-android-build.log" /tmp/word-tuo-apk-output/build.log 2>/dev/null || true
+          cp WordTUO-Android.apk /tmp/word-tuo-apk-output/ 2>/dev/null || true
+          if [ -f WordTUO-Android.apk ]; then echo "Build succeeded" > /tmp/word-tuo-apk-output/status.txt; else echo "Build failed" > /tmp/word-tuo-apk-output/status.txt; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan word-tuo-apk-output
+          git rm -rf .
+          git clean -fdx
+          cp -R /tmp/word-tuo-apk-output/. .
+          git add .
+          git commit -m "Publish WordTUO Android APK build"
+          git push --force origin HEAD:word-tuo-apk-artifacts
