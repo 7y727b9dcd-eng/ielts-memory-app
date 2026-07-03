@@ -29,7 +29,7 @@ if (failed.length) {
 }
 
 const data = JSON.parse(readFileSync(vocabPath, "utf8"));
-if (!Array.isArray(data.words) || data.words.length < 250) {
+if (!Array.isArray(data.words) || data.words.length < 2000) {
   console.error(`FAIL 高中词库数量不足：${data.words?.length ?? 0}`);
   process.exit(1);
 }
