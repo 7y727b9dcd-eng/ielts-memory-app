@@ -67,6 +67,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .toolbar select { flex: 0 0 116px; }
 .library-toolbar select { flex-basis: 132px; }
 .command-row { justify-content: flex-start; margin-top: 12px; }
+.library-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 8px; color: var(--muted); font-size: 12px; }
+.library-status .text-button[disabled] { color: var(--muted); opacity: .55; cursor: default; }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: white; }
 .segment { background: transparent; color: var(--muted); }
 .segment.active { background: var(--ink); color: white; }
@@ -78,6 +80,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .learning-word { padding: 24px 0 10px; text-align: center; }
 .learning-word h2 { font-size: clamp(38px, 12vw, 58px); overflow-wrap: anywhere; }
 .phonetic { margin: 8px 0 0; color: var(--muted); font-size: 16px; }
+.audio-status { margin: 7px 0 0; color: var(--green); font-size: 12px; }
 .learning-answer { padding: 18px; border-radius: 7px; background: var(--soft); }
 .learning-answer p { margin-bottom: 8px; line-height: 1.6; }
 .learning-answer blockquote { margin: 0; color: var(--muted); line-height: 1.6; }

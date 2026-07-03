@@ -1,16 +1,29 @@
 "use strict";
 
-const STORAGE_KEY = "word-tuo-state-v4";
-const LEGACY_STORAGE_KEYS = ["word-tuo-state-v3", "word-tuo-state-v2", "word-tuo-state-v1"];
-const BACKUP_VERSION = 4;
+const STORAGE_KEY = "word-tuo-state-v5";
+const LEGACY_STORAGE_KEYS = ["word-tuo-state-v4", "word-tuo-state-v3", "word-tuo-state-v2", "word-tuo-state-v1"];
+const BACKUP_VERSION = 5;
 const EXAM_INTERVAL_DAYS = 21;
 const MAX_HISTORY = 800;
+const LIBRARY_PAGE_SIZE = 40;
+const LEXICON_API_BASE = "https://api.dictionaryapi.dev/api/v2/entries/en/";
+const AUDIO_FALLBACK_BASE = "https://dict.youdao.com/dictvoice?type=2&audio=";
 const CATALOGS = {
   ielts: "雅思词库",
   highschool: "高中人教版",
   all: "全部词库"
 };
 const HIGH_SCHOOL_CATALOG_URL = "./data/pep-highschool-2019.json";
+
+const COMMON_ROOTS = {
+  act: "做、行动", ag: "做、驱动", anim: "生命、精神", audi: "听", bio: "生命", cap: "抓住、拿", ceed: "走", cess: "走", ced: "走",
+  chron: "时间", cid: "切、杀", claim: "喊叫", clud: "关闭", cogn: "知道", cred: "相信", cur: "跑", dict: "说", duc: "引导",
+  fact: "做、制造", fer: "携带", fin: "结束、边界", form: "形状", gen: "产生", geo: "土地", graph: "写、画", ject: "投掷",
+  jud: "判断", log: "说、学科", loc: "地点", luc: "光", man: "手", migr: "迁移", mit: "送出", mob: "移动", mot: "移动",
+  nov: "新", path: "感受", ped: "脚", pel: "推动", phon: "声音", port: "携带", pos: "放置", press: "压", rupt: "破裂",
+  scrib: "写", script: "写", sent: "感觉", sequ: "跟随", spect: "看", struct: "建造", tain: "握住", tele: "远", tend: "伸展",
+  tract: "拉", ven: "来", vert: "转", vid: "看", vis: "看", viv: "生命", voc: "声音、叫"
+};
 
 const SAMPLE_WORDS = [
   { text: "substantial", meaning: "大量的；实质性的；重要的", phonetic: "/səbˈstænʃl/", example: "The report shows a substantial increase in international applications.", tags: ["雅思", "阅读", "高频"] },
@@ -52,18 +65,22 @@ let toastTimer;
 const elementIds = [
   "pageTitle", "memorySummary", "newCount", "dueCount", "todayCount", "streakCount", "weakWordList",
   "examBanner", "examBannerTitle", "examBannerText", "examBannerButton", "learningPanel", "examPanel",
-  "searchInput", "catalogSelect", "filterSelect", "libraryList", "levelBars", "masteryRate", "historyList", "examHistoryList",
+  "searchInput", "catalogSelect", "filterSelect", "libraryCounter", "loadMoreLibraryButton", "libraryList", "levelBars", "masteryRate", "historyList", "examHistoryList",
   "dailyNewGoalInput", "dailyGoalInput", "activeCatalogInput", "autoSpeakInput", "videoEnabledInput", "autoPlayClipsInput", "nextExamSetting",
   "restoreFileInput", "wordDialog", "wordForm", "wordDialogTitle", "wordId", "wordText", "wordMeaning",
-  "wordPhonetic", "wordCatalog", "wordTags", "wordExample", "mnemonicRoots", "mnemonicAssociation", "mnemonicFamily", "mnemonicSyllables",
+  "wordPhonetic", "wordCatalog", "wordAudioUrl", "wordTags", "wordExample", "mnemonicRoots", "mnemonicAssociation", "mnemonicFamily", "mnemonicSyllables",
   "importDialog", "importForm", "importText", "memoryDialog", "memoryWord", "memoryContent", "sceneDialog", "sceneWord", "sceneDescription", "sceneWordId",
   "sceneSavedClips", "sceneClipForm", "clipUrl", "clipStart", "clipEnd", "clipTitle", "clipCaption", "sceneResults", "toast"
 ];
 const el = Object.fromEntries(elementIds.map((id) => [id, document.getElementById(id)]));
+let libraryVisibleCount = LIBRARY_PAGE_SIZE;
+let librarySignature = "";
+const lexiconRequests = new Map();
 
 bindEvents();
 saveState();
-renderAll();
+syncLibraryCatalogWithActive();
+renderActiveView();
 ensureBundledCatalogs();
 registerServiceWorker();
 
@@ -82,9 +99,10 @@ function bindEvents() {
   document.getElementById("exportButton").addEventListener("click", exportBackup);
   document.getElementById("restoreButton").addEventListener("click", () => el.restoreFileInput.click());
   document.getElementById("resetButton").addEventListener("click", resetData);
-  el.searchInput.addEventListener("input", renderLibrary);
-  el.catalogSelect.addEventListener("change", renderLibrary);
-  el.filterSelect.addEventListener("change", renderLibrary);
+  el.searchInput.addEventListener("input", resetLibraryWindow);
+  el.catalogSelect.addEventListener("change", resetLibraryWindow);
+  el.filterSelect.addEventListener("change", resetLibraryWindow);
+  el.loadMoreLibraryButton.addEventListener("click", () => { libraryVisibleCount += LIBRARY_PAGE_SIZE; renderLibrary(); });
   el.wordForm.addEventListener("submit", saveWordForm);
   el.importForm.addEventListener("submit", importWords);
   el.sceneClipForm.addEventListener("submit", saveSceneClip);
@@ -150,6 +168,7 @@ function normalizeState(input) {
 function createWord(data) {
   return normalizeWord({
     id: makeId("word"), text: data.text, meaning: data.meaning, phonetic: data.phonetic || "",
+    audioUrl: data.audioUrl || "", lexiconFetchedAt: data.lexiconFetchedAt || null,
     example: data.example || "", tags: data.tags || [catalogLabel(data.catalog || "ielts")], catalog: data.catalog || inferCatalog(data), catalogs: data.catalogs,
     mnemonics: normalizeMnemonics(data.mnemonics, data.text), status: data.status || "new",
     repetitions: 0, easeFactor: 2.5, intervalDays: 0, lapseCount: 0, correct: 0, wrong: 0,
@@ -163,9 +182,10 @@ function normalizeWord(word) {
   const storedInterval = Number(word.intervalDays);
   const status = ["new", "learning", "review", "mastered"].includes(word.status)
     ? word.status : (word.lastReviewed ? (Number(word.level) >= 5 ? "mastered" : "review") : "new");
-  return {
+  const normalized = {
     id: word.id || makeId("word"), text: repairWordText(String(word.text).trim()), meaning: String(word.meaning).trim(),
     phonetic: String(word.phonetic || "").trim(), example: String(word.example || "").trim(), tags: splitTags(word.tags || catalogLabel(inferCatalog(word))),
+    audioUrl: safeAudioUrl(word.audioUrl), lexiconFetchedAt: word.lexiconFetchedAt || null,
     catalog: normalizeCatalog(word.catalog || inferCatalog(word)), catalogs: normalizeCatalogs(word.catalogs || [word.catalog || inferCatalog(word)]),
     mnemonics: normalizeMnemonics(word.mnemonics, word.text),
     status, repetitions, easeFactor: clamp(Number(word.easeFactor) || 2.5, 1.3, 3.0),
@@ -174,6 +194,8 @@ function normalizeWord(word) {
     createdAt: word.createdAt || new Date().toISOString(), learnedAt: word.learnedAt || (word.lastReviewed ? word.lastReviewed : null),
     lastReviewed: word.lastReviewed || null, nextReview: word.nextReview || todayKey()
   };
+  normalized.mnemonics = upgradeGeneratedMnemonics(normalized);
+  return normalized;
 }
 
 function normalizeMnemonics(input, text) {
@@ -185,6 +207,32 @@ function normalizeMnemonics(input, text) {
     family: String(source.family || "阅读时继续收集同词根、同前后缀的词，形成词族。" ).trim(),
     syllables: String(source.syllables || splitForSpelling(text)).trim()
   };
+}
+
+function upgradeGeneratedMnemonics(word) {
+  const memory = word.mnemonics || {};
+  const roots = String(memory.roots || "");
+  const association = String(memory.association || "");
+  const shouldRefreshRoots = !roots || /未识别到可靠|自动拆解，建议核对词源/.test(roots);
+  const shouldRefreshAssociation = !association || association.includes("发音、词形和中文释义组合成一个夸张画面");
+  return {
+    roots: shouldRefreshRoots ? analyzeWordParts(word.text) : roots,
+    association: shouldRefreshAssociation ? buildAssociation(word) : association,
+    family: memory.family && !memory.family.includes("继续收集") ? memory.family : buildWordFamily(word.text),
+    syllables: memory.syllables || splitForSpelling(word.text)
+  };
+}
+
+function buildAssociation(word) {
+  const firstMeaning = String(word.meaning || "").split(/[；;，,。]/)[0] || "这个意思";
+  return `看到 ${word.text} 时先读音，再联想到“${firstMeaning}”；复习时用自己的句子复述一次，避免只看中文。`;
+}
+
+function buildWordFamily(text) {
+  const word = String(text || "").toLowerCase();
+  const root = Object.keys(COMMON_ROOTS).sort((a,b) => b.length - a.length).find((part) => word.includes(part) && word.length > part.length + 2);
+  if (root) return `同根联想：围绕 ${root}（${COMMON_ROOTS[root]}）收集派生词；复习时比较词性变化和含义变化。`;
+  return `词族联想：记录 ${word} 的名词、动词、形容词或副词形式；没有派生词时用固定搭配来记。`;
 }
 
 function normalizeClips(input) {
@@ -205,9 +253,14 @@ function analyzeWordParts(text) {
   const suffixes = { ation: "名词后缀", tion: "名词后缀", sion: "名词后缀", ment: "名词后缀", ness: "性质、状态", able: "能够", ible: "能够", ous: "形容词后缀", ive: "具有……性质", al: "形容词后缀", ent: "形容词/名词后缀", ant: "形容词/名词后缀", ate: "动词后缀", ity: "性质、状态", ly: "副词后缀" };
   const prefix = Object.keys(prefixes).sort((a,b) => b.length - a.length).find((part) => word.startsWith(part) && word.length > part.length + 3);
   const suffix = Object.keys(suffixes).sort((a,b) => b.length - a.length).find((part) => word.endsWith(part) && word.length > part.length + 3);
-  if (!prefix && !suffix) return "未识别到可靠的常见词缀；建议结合词源词典后在词库中补充。";
+  const root = Object.keys(COMMON_ROOTS).sort((a,b) => b.length - a.length).find((part) => word.includes(part) && word.length > part.length + 2);
+  if (!prefix && !suffix && !root) return `词形观察：${word} 暂未匹配常见词根；可先按音节 ${splitForSpelling(word)} 记拼写，再结合例句记意义。`;
   const core = word.slice(prefix?.length || 0, suffix ? -suffix.length : undefined);
-  return `${prefix ? `${prefix}-（${prefixes[prefix]}）+ ` : ""}${core || word}${suffix ? ` + -${suffix}（${suffixes[suffix]}）` : ""}（自动拆解，建议核对词源）`;
+  const parts = [];
+  if (prefix) parts.push(`${prefix}-（${prefixes[prefix]}）`);
+  parts.push(root ? `${root}（${COMMON_ROOTS[root]}）` : (core || word));
+  if (suffix) parts.push(`-${suffix}（${suffixes[suffix]}）`);
+  return `${parts.join(" + ")}。记忆重点：${root ? `抓住 ${root}=${COMMON_ROOTS[root]} 这个核心意义` : "抓住中间词干"}，再用前后缀判断词性和方向。`;
 }
 
 function splitForSpelling(text) {
@@ -249,8 +302,15 @@ function replaceState(next) {
 }
 
 function renderAll() {
-  renderHome(); renderLibrary(); renderStats(); renderSettings();
-  if (activeView === "learn") renderLearnArea();
+  renderActiveView();
+}
+
+function renderActiveView() {
+  if (activeView === "home") return renderHome();
+  if (activeView === "learn") return renderLearnArea();
+  if (activeView === "library") return renderLibrary();
+  if (activeView === "stats") return renderStats();
+  if (activeView === "settings") return renderSettings();
 }
 
 function switchView(name) {
@@ -258,8 +318,8 @@ function switchView(name) {
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
   el.pageTitle.textContent = pageTitles[name] || "单词TUO";
-  if (name === "learn") renderLearnArea(); else renderAll();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  renderActiveView();
+  window.scrollTo(0, 0);
 }
 
 function setLearnMode(mode) {
@@ -342,10 +402,11 @@ function sessionHeader(session, labels) {
 }
 
 function renderPreviewStage(word, session) {
-  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","scene"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(word.phonetic)}</p></div><div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句，可在词库中补充。")}</blockquote></div>${renderMemoryMethods(word)}<div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="toRecallButton">我看完了，开始回忆</button></div></article>`;
-  document.getElementById("sessionSpeakButton").addEventListener("click", () => speak(word.text));
+  ensureWordLexicon(word, { rerender: true });
+  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","scene"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p><p class="audio-status">${word.audioUrl ? "已接入网络真人发音" : "朗读时会自动联网补充发音"}</p></div><div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句，可在词库中补充。")}</blockquote></div>${renderMemoryMethods(word)}<div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="toRecallButton">我看完了，开始回忆</button></div></article>`;
+  document.getElementById("sessionSpeakButton").addEventListener("click", () => speakWord(word));
   document.getElementById("toRecallButton").addEventListener("click", () => { session.stage = "recall"; session.answerRevealed = false; saveState(); renderLearnArea(); });
-  if (state.settings.autoSpeak) setTimeout(() => speak(word.text), 120);
+  if (state.settings.autoSpeak) setTimeout(() => speakWord(word), 120);
 }
 
 function renderMemoryMethods(word) {
@@ -361,15 +422,16 @@ function renderMemoryMethods(word) {
 }
 
 function renderRecallStage(word, session, isReview) {
-  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","cloze"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(word.phonetic)}</p></div>${session.answerRevealed ? `<div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句")}</blockquote></div><div class="rating-actions"><button class="again-button" data-quality="1">不认识<small>重新学习</small></button><button class="hard-button" data-quality="3">模糊<small>缩短间隔</small></button><button class="good-button" data-quality="5">认识<small>增加间隔</small></button></div>` : `<div class="learning-answer"><p>先在心里说出中文释义，再显示答案。</p></div><div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="revealAnswerButton">显示答案</button></div>`}</article>`;
-  document.getElementById("sessionSpeakButton")?.addEventListener("click", () => speak(word.text));
+  ensureWordLexicon(word, { rerender: true });
+  el.learningPanel.innerHTML = `<article class="learning-card">${sessionHeader(session, ["preview","recall","cloze"])}<div class="learning-word"><h2>${escapeHtml(word.text)}</h2><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p></div>${session.answerRevealed ? `<div class="learning-answer"><p><strong>${escapeHtml(word.meaning)}</strong></p><blockquote>${escapeHtml(word.example || "暂无例句")}</blockquote></div><div class="rating-actions"><button class="again-button" data-quality="1">不认识<small>重新学习</small></button><button class="hard-button" data-quality="3">模糊<small>缩短间隔</small></button><button class="good-button" data-quality="5">认识<small>增加间隔</small></button></div>` : `<div class="learning-answer"><p>先在心里说出中文释义，再显示答案。</p></div><div class="session-tools"><button class="secondary-button" id="sessionSpeakButton">朗读</button><button class="primary-button" id="revealAnswerButton">显示答案</button></div>`}</article>`;
+  document.getElementById("sessionSpeakButton")?.addEventListener("click", () => speakWord(word));
   document.getElementById("revealAnswerButton")?.addEventListener("click", () => { session.answerRevealed = true; saveState(); renderLearnArea(); });
   document.querySelectorAll("[data-quality]").forEach((button) => button.addEventListener("click", () => {
     const quality = Number(button.dataset.quality);
     if (isReview) { applyReview(word, quality, "review"); advanceSession(); }
     else { session.pendingQuality = quality; session.stage = "scene"; session.clozeChecked = false; session.clozeCorrect = false; saveState(); renderLearnArea(); }
   }));
-  if (!session.answerRevealed && state.settings.autoSpeak) setTimeout(() => speak(word.text), 120);
+  if (!session.answerRevealed && state.settings.autoSpeak) setTimeout(() => speakWord(word), 120);
 }
 
 function renderSceneStage(word, session) {
@@ -435,11 +497,12 @@ function startExam({ practice = false, retest = false, wordIds = null } = {}) {
 function selectExamWords() {
   const picked = [];
   const add = (items, limit) => items.forEach((word) => { if (picked.length < 30 && limit > 0 && !picked.includes(word)) { picked.push(word); limit -= 1; } });
-  const weak = [...state.words].sort((a,b) => b.lapseCount - a.lapseCount || b.wrong - a.wrong);
+  const examWords = filterWordsByActiveCatalog(state.words);
+  const weak = [...examWords].sort((a,b) => b.lapseCount - a.lapseCount || b.wrong - a.wrong);
   const recentCutoff = addDays(todayKey(), -21);
-  const recent = state.words.filter((word) => (word.learnedAt || word.createdAt).slice(0,10) >= recentCutoff);
-  const mastered = state.words.filter((word) => word.status === "mastered");
-  add(weak.filter((word) => word.status !== "new"), 12); add(recent, 10); add(mastered, 8); add(state.words, 30 - picked.length);
+  const recent = examWords.filter((word) => (word.learnedAt || word.createdAt).slice(0,10) >= recentCutoff);
+  const mastered = examWords.filter((word) => word.status === "mastered");
+  add(weak.filter((word) => word.status !== "new"), 12); add(recent, 10); add(mastered, 8); add(examWords, 30 - picked.length);
   return picked.slice(0, 30);
 }
 
@@ -448,7 +511,7 @@ function createExamQuestions(words) {
   return shuffled.map((word, index) => {
     const type = index < Math.ceil(words.length / 3) ? "choice" : index < Math.ceil(words.length * 2 / 3) ? "spelling" : (word.example ? "cloze" : "spelling");
     if (type === "choice") {
-      const distractors = shuffle(state.words.filter((item) => item.id !== word.id).map((item) => item.meaning).filter((value, i, all) => all.indexOf(value) === i)).slice(0, 3);
+      const distractors = shuffle(filterWordsByActiveCatalog(state.words).filter((item) => item.id !== word.id).map((item) => item.meaning).filter((value, i, all) => all.indexOf(value) === i)).slice(0, 3);
       return { id: makeId("question"), wordId: word.id, type, prompt: `选择 “${word.text}” 的中文释义`, answer: word.meaning, options: shuffle([word.meaning, ...distractors]), response: "", correct: null };
     }
     if (type === "cloze") return { id: makeId("question"), wordId: word.id, type, prompt: makeCloze(word.example, word.text), answer: word.text, options: [], response: "", correct: null };
@@ -488,10 +551,27 @@ function renderScoreDetails(record) {
   return `<div class="score-details">${Object.entries(labels).map(([type,label]) => `<div><span>${label}</span><strong>${record.breakdown?.[type]?.correct || 0}/${record.breakdown?.[type]?.total || 0}</strong></div>`).join("")}</div>`;
 }
 
+function resetLibraryWindow() {
+  libraryVisibleCount = LIBRARY_PAGE_SIZE;
+  librarySignature = "";
+  renderLibrary();
+}
+
+function syncLibraryCatalogWithActive() {
+  if (!el.catalogSelect) return;
+  const activeCatalog = normalizeCatalog(state.settings.activeCatalog, true);
+  el.catalogSelect.value = activeCatalog;
+}
+
 function renderLibrary() {
   const query = el.searchInput.value.trim().toLowerCase();
   const catalog = el.catalogSelect.value;
   const filter = el.filterSelect.value;
+  const signature = `${query}|${catalog}|${filter}`;
+  if (signature !== librarySignature) {
+    librarySignature = signature;
+    libraryVisibleCount = LIBRARY_PAGE_SIZE;
+  }
   const words = state.words.filter((word) => {
     if (catalog !== "all" && !wordMatchesCatalog(word, catalog)) return false;
     const searchable = [word.text, word.meaning, word.example, catalogLabel(word.catalog), ...word.tags].join(" ").toLowerCase();
@@ -502,7 +582,12 @@ function renderLibrary() {
     if (filter === "mastered") return word.status === "mastered";
     return true;
   }).sort((a,b) => statusRank(a.status) - statusRank(b.status) || a.nextReview.localeCompare(b.nextReview) || a.text.localeCompare(b.text));
-  renderWordList(el.libraryList, words, false);
+  const visibleWords = words.slice(0, libraryVisibleCount);
+  el.libraryCounter.textContent = `${catalogLabel(catalog)} · 已加载 ${Math.min(visibleWords.length, words.length)} / ${words.length}`;
+  el.loadMoreLibraryButton.disabled = visibleWords.length >= words.length;
+  el.loadMoreLibraryButton.textContent = visibleWords.length >= words.length ? "已全部加载" : `加载更多 ${Math.min(LIBRARY_PAGE_SIZE, words.length - visibleWords.length)} 个`;
+  renderWordList(el.libraryList, visibleWords, false);
+  warmVisibleLexicon(visibleWords);
 }
 
 function renderWordList(container, words, compact) {
@@ -512,7 +597,7 @@ function renderWordList(container, words, compact) {
     const item = document.createElement("li"); item.className = "word-item";
     const sceneButton = state.settings.videoEnabled ? `<button class="secondary-button" data-action="scene" data-id="${word.id}">影视语境</button>` : "";
     const catalogPills = normalizeCatalogs(word.catalogs || [word.catalog]).map((catalog) => `<span class="pill catalog-pill">${escapeHtml(catalogLabel(catalog))}</span>`).join("");
-    item.innerHTML = `<div><h3>${escapeHtml(word.text)}</h3><p>${escapeHtml(word.meaning)}</p><div class="word-meta">${catalogPills}<span class="pill">${statusLabel(word.status)}</span><span class="pill">${word.status === "new" ? "未安排" : formatDue(word.nextReview)}</span>${word.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div></div>${compact ? "" : `<div class="item-actions"><button class="secondary-button" data-action="speak" data-id="${word.id}">朗读</button><button class="secondary-button" data-action="memory" data-id="${word.id}">记忆法</button>${sceneButton}<button class="secondary-button" data-action="edit" data-id="${word.id}">编辑</button><button class="danger-button" data-action="delete" data-id="${word.id}">删除</button></div>`}`;
+    item.innerHTML = `<div><h3>${escapeHtml(word.text)}</h3><p>${escapeHtml(word.meaning)}</p><p class="phonetic">${escapeHtml(formatPhonetic(word))}</p><div class="word-meta">${catalogPills}<span class="pill">${word.audioUrl ? "真人发音" : "待补音频"}</span><span class="pill">${statusLabel(word.status)}</span><span class="pill">${word.status === "new" ? "未安排" : formatDue(word.nextReview)}</span>${word.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div></div>${compact ? "" : `<div class="item-actions"><button class="secondary-button" data-action="speak" data-id="${word.id}">发音</button><button class="secondary-button" data-action="memory" data-id="${word.id}">记忆法</button>${sceneButton}<button class="secondary-button" data-action="edit" data-id="${word.id}">编辑</button><button class="danger-button" data-action="delete" data-id="${word.id}">删除</button></div>`}`;
     container.append(item);
   });
   container.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => handleWordAction(button.dataset.action, button.dataset.id)));
@@ -520,7 +605,7 @@ function renderWordList(container, words, compact) {
 
 function handleWordAction(action, id) {
   const word = state.words.find((item) => item.id === id); if (!word) return;
-  if (action === "speak") speak(word.text);
+  if (action === "speak") speakWord(word);
   if (action === "edit") openWordDialog(id);
   if (action === "memory") openMemoryDialog(word);
   if (action === "scene") openSceneDialog(word);
@@ -675,17 +760,17 @@ function openWordDialog(id = "") {
   const word = state.words.find((item) => item.id === id);
   const memory = word?.mnemonics || normalizeMnemonics(null, word?.text || "");
   const catalog = normalizeCatalog(word?.catalog || state.settings.activeCatalog || "ielts");
-  el.wordDialogTitle.textContent = word ? "编辑单词" : "添加单词"; el.wordId.value = word?.id || ""; el.wordText.value = word?.text || ""; el.wordMeaning.value = word?.meaning || ""; el.wordPhonetic.value = word?.phonetic || ""; el.wordCatalog.value = catalog; el.wordTags.value = word?.tags.join(", ") || catalogLabel(catalog); el.wordExample.value = word?.example || ""; el.mnemonicRoots.value = memory.roots; el.mnemonicAssociation.value = memory.association; el.mnemonicFamily.value = memory.family; el.mnemonicSyllables.value = memory.syllables; el.wordDialog.showModal();
+  el.wordDialogTitle.textContent = word ? "编辑单词" : "添加单词"; el.wordId.value = word?.id || ""; el.wordText.value = word?.text || ""; el.wordMeaning.value = word?.meaning || ""; el.wordPhonetic.value = word?.phonetic || ""; el.wordCatalog.value = catalog; el.wordAudioUrl.value = word?.audioUrl || ""; el.wordTags.value = word?.tags.join(", ") || catalogLabel(catalog); el.wordExample.value = word?.example || ""; el.mnemonicRoots.value = memory.roots; el.mnemonicAssociation.value = memory.association; el.mnemonicFamily.value = memory.family; el.mnemonicSyllables.value = memory.syllables; el.wordDialog.showModal();
 }
 
 function saveWordForm(event) {
   event.preventDefault();
   const id = el.wordId.value;
   const mnemonics = { roots: el.mnemonicRoots.value, association: el.mnemonicAssociation.value, family: el.mnemonicFamily.value, syllables: el.mnemonicSyllables.value };
-  const payload = createWord({ text: el.wordText.value, meaning: el.wordMeaning.value, phonetic: el.wordPhonetic.value, example: el.wordExample.value, tags: splitTags(el.wordTags.value), catalog: el.wordCatalog.value, mnemonics });
+  const payload = createWord({ text: el.wordText.value, meaning: el.wordMeaning.value, phonetic: el.wordPhonetic.value, audioUrl: el.wordAudioUrl.value, example: el.wordExample.value, tags: splitTags(el.wordTags.value), catalog: el.wordCatalog.value, mnemonics });
   if (!payload) return;
   const index = state.words.findIndex((word) => word.id === id);
-  if (index >= 0) state.words[index] = { ...state.words[index], text: payload.text, meaning: payload.meaning, phonetic: payload.phonetic, example: payload.example, tags: payload.tags, catalog: payload.catalog, catalogs: payload.catalogs, mnemonics: payload.mnemonics }; else state.words.unshift(payload);
+  if (index >= 0) state.words[index] = { ...state.words[index], text: payload.text, meaning: payload.meaning, phonetic: payload.phonetic, audioUrl: payload.audioUrl, example: payload.example, tags: payload.tags, catalog: payload.catalog, catalogs: payload.catalogs, mnemonics: payload.mnemonics }; else state.words.unshift(payload);
   saveState(); el.wordDialog.close(); el.wordForm.reset(); renderAll(); showToast("单词已保存");
 }
 
@@ -711,6 +796,8 @@ function importWordObjects(rawWords, options = {}) {
       found.tags = uniqueStrings([...(found.tags || []), ...word.tags]);
       if (!found.meaning && word.meaning) found.meaning = word.meaning;
       if (!found.example && word.example) found.example = word.example;
+      if (!found.phonetic && word.phonetic) found.phonetic = word.phonetic;
+      if (!found.audioUrl && word.audioUrl) found.audioUrl = word.audioUrl;
       updated += 1;
       return;
     }
@@ -765,7 +852,7 @@ function renderSettings() {
 }
 
 function saveSettings(event) {
-  event.preventDefault(); const previousCatalog = state.settings.activeCatalog; state.settings.dailyNewGoal = clamp(Number(el.dailyNewGoalInput.value) || 10, 1, 50); state.settings.dailyGoal = clamp(Number(el.dailyGoalInput.value) || 30, 1, 300); state.settings.activeCatalog = normalizeCatalog(el.activeCatalogInput.value, true); if (previousCatalog !== state.settings.activeCatalog) state.learningSession = null; state.settings.autoSpeak = el.autoSpeakInput.checked; state.settings.videoEnabled = el.videoEnabledInput.checked; state.settings.autoPlayClips = el.autoPlayClipsInput.checked; saveState(); renderAll(); showToast(`已切换到${activeCatalogLabel()}`);
+  event.preventDefault(); const previousCatalog = state.settings.activeCatalog; state.settings.dailyNewGoal = clamp(Number(el.dailyNewGoalInput.value) || 10, 1, 50); state.settings.dailyGoal = clamp(Number(el.dailyGoalInput.value) || 30, 1, 300); state.settings.activeCatalog = normalizeCatalog(el.activeCatalogInput.value, true); if (previousCatalog !== state.settings.activeCatalog) { state.learningSession = null; syncLibraryCatalogWithActive(); resetLibraryWindow(); } state.settings.autoSpeak = el.autoSpeakInput.checked; state.settings.videoEnabled = el.videoEnabledInput.checked; state.settings.autoPlayClips = el.autoPlayClipsInput.checked; saveState(); renderActiveView(); showToast(`已切换到${activeCatalogLabel()}`);
 }
 
 function exportBackup() {
@@ -797,7 +884,65 @@ function todayRecords() { return state.history.filter((record) => record.reviewe
 function learningStreak() { const days = new Set(state.history.map((record) => record.reviewedAt.slice(0,10))); let cursor = new Date(); if (!days.has(dateKey(cursor))) cursor.setDate(cursor.getDate() - 1); let count = 0; while (days.has(dateKey(cursor))) { count += 1; cursor.setDate(cursor.getDate() - 1); } return count; }
 function isExamDue() { return todayKey() >= state.examSchedule.nextExamAt; }
 
+async function speakWord(word) {
+  const enriched = await ensureWordLexicon(word);
+  if (enriched?.audioUrl) return playWordAudio(enriched.audioUrl, enriched.text);
+  speak(word.text);
+}
+function playWordAudio(url, fallbackText) {
+  try {
+    const audio = new Audio(url);
+    audio.preload = "auto";
+    audio.play().catch(() => speak(fallbackText));
+  } catch {
+    speak(fallbackText);
+  }
+}
 function speak(text) { if (!("speechSynthesis" in window)) return showToast("当前环境不支持朗读"); speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = "en-US"; utterance.rate = .86; speechSynthesis.speak(utterance); }
+async function ensureWordLexicon(word, { rerender = false } = {}) {
+  if (!word || word.audioUrl && word.phonetic) return word;
+  const key = word.text.toLowerCase();
+  if (lexiconRequests.has(key)) return lexiconRequests.get(key);
+  const request = lookupDictionaryLexicon(word.text).then((lexicon) => {
+    const target = state.words.find((item) => item.id === word.id) || word;
+    let changed = false;
+    if (lexicon.phonetic && !target.phonetic) { target.phonetic = lexicon.phonetic; changed = true; }
+    if (lexicon.audioUrl && !target.audioUrl) { target.audioUrl = lexicon.audioUrl; changed = true; }
+    target.lexiconFetchedAt = new Date().toISOString();
+    if (changed) saveState();
+    if (changed && rerender && (activeView === "learn" || activeView === "library")) renderActiveView();
+    return target;
+  }).catch(() => {
+    word.lexiconFetchedAt = new Date().toISOString();
+    saveState();
+    return word;
+  }).finally(() => lexiconRequests.delete(key));
+  lexiconRequests.set(key, request);
+  return request;
+}
+async function lookupDictionaryLexicon(text) {
+  if (typeof fetch !== "function") return {};
+  const cleaned = String(text || "").trim().toLowerCase().replace(/[^a-z -]/g, "");
+  if (!cleaned || cleaned.length > 48) return {};
+  const response = await fetch(`${LEXICON_API_BASE}${encodeURIComponent(cleaned)}`);
+  if (!response.ok) return {};
+  const entries = await response.json();
+  const phonetics = Array.isArray(entries) ? entries.flatMap((entry) => entry.phonetics || []) : [];
+  const audioUrl = safeAudioUrl(phonetics.find((item) => safeAudioUrl(item.audio))?.audio) || buildFallbackAudioUrl(cleaned);
+  const phonetic = phonetics.find((item) => item.text)?.text || entries.find?.((entry) => entry.phonetic)?.phonetic || "";
+  return { phonetic: String(phonetic || "").trim(), audioUrl };
+}
+function buildFallbackAudioUrl(text) {
+  const cleaned = String(text || "").trim().toLowerCase();
+  if (!/^[a-z][a-z -]{1,47}$/.test(cleaned)) return "";
+  return `${AUDIO_FALLBACK_BASE}${encodeURIComponent(cleaned)}`;
+}
+function formatPhonetic(word) { return word.phonetic || "音标待补充"; }
+function warmVisibleLexicon(words) {
+  if (activeView !== "library") return;
+  const targets = words.filter((word) => !word.phonetic || !word.audioUrl).slice(0, 6);
+  setTimeout(() => targets.forEach((word) => ensureWordLexicon(word, { rerender: false })), 120);
+}
 function makeCloze(sentence, word) { const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); const replaced = sentence.replace(new RegExp(`\\b${escaped}\\b`, "i"), "____"); return replaced === sentence ? `${sentence}  [${word}]` : replaced; }
 function normalizeAnswer(value) { return String(value || "").trim().toLowerCase().replace(/[.!?,;:'"\s]+/g, " ").trim(); }
 function shuffle(items) { for (let i = items.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [items[i], items[j]] = [items[j], items[i]]; } return items; }
@@ -851,4 +996,5 @@ function emptyItem(text) { const item = document.createElement("li"); item.class
 function showToast(text) { el.toast.textContent = text; el.toast.classList.remove("hidden"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.toast.classList.add("hidden"), 2200); }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 function safeUrl(value) { try { const url = new URL(value); return url.protocol === "https:" ? url.href : "#"; } catch { return "#"; } }
+function safeAudioUrl(value) { try { const url = new URL(String(value || "")); return url.protocol === "https:" ? url.href : ""; } catch { return ""; } }
 function registerServiceWorker() { if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {})); }
