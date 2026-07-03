@@ -1,10 +1,16 @@
 "use strict";
 
-const STORAGE_KEY = "word-tuo-state-v3";
-const LEGACY_STORAGE_KEYS = ["word-tuo-state-v2", "word-tuo-state-v1"];
-const BACKUP_VERSION = 3;
+const STORAGE_KEY = "word-tuo-state-v4";
+const LEGACY_STORAGE_KEYS = ["word-tuo-state-v3", "word-tuo-state-v2", "word-tuo-state-v1"];
+const BACKUP_VERSION = 4;
 const EXAM_INTERVAL_DAYS = 21;
 const MAX_HISTORY = 800;
+const CATALOGS = {
+  ielts: "雅思词库",
+  highschool: "高中人教版",
+  all: "全部词库"
+};
+const HIGH_SCHOOL_CATALOG_URL = "./data/pep-highschool-2019.json";
 
 const SAMPLE_WORDS = [
   { text: "substantial", meaning: "大量的；实质性的；重要的", phonetic: "/səbˈstænʃl/", example: "The report shows a substantial increase in international applications.", tags: ["雅思", "阅读", "高频"] },
@@ -36,7 +42,7 @@ const SAMPLE_MNEMONICS = {
   compelling: { roots: "com-（共同、加强）+ pel（驱动）+ -ing → 强力推动注意力", association: "像一股力量把你推向结论，所以令人信服。", family: "compel 迫使；compulsion 强迫；compellingly 有说服力地", syllables: "com · pel · ling" }
 };
 
-const pageTitles = { home: "今天", learn: "学习", library: "雅思词库", stats: "统计", settings: "设置" };
+const pageTitles = { home: "今天", learn: "学习", library: "词库", stats: "统计", settings: "设置" };
 const rawState = loadRawState();
 const state = normalizeState(rawState);
 let activeView = "home";
@@ -46,10 +52,10 @@ let toastTimer;
 const elementIds = [
   "pageTitle", "memorySummary", "newCount", "dueCount", "todayCount", "streakCount", "weakWordList",
   "examBanner", "examBannerTitle", "examBannerText", "examBannerButton", "learningPanel", "examPanel",
-  "searchInput", "filterSelect", "libraryList", "levelBars", "masteryRate", "historyList", "examHistoryList",
-  "dailyNewGoalInput", "dailyGoalInput", "autoSpeakInput", "videoEnabledInput", "autoPlayClipsInput", "nextExamSetting",
+  "searchInput", "catalogSelect", "filterSelect", "libraryList", "levelBars", "masteryRate", "historyList", "examHistoryList",
+  "dailyNewGoalInput", "dailyGoalInput", "activeCatalogInput", "autoSpeakInput", "videoEnabledInput", "autoPlayClipsInput", "nextExamSetting",
   "restoreFileInput", "wordDialog", "wordForm", "wordDialogTitle", "wordId", "wordText", "wordMeaning",
-  "wordPhonetic", "wordTags", "wordExample", "mnemonicRoots", "mnemonicAssociation", "mnemonicFamily", "mnemonicSyllables",
+  "wordPhonetic", "wordCatalog", "wordTags", "wordExample", "mnemonicRoots", "mnemonicAssociation", "mnemonicFamily", "mnemonicSyllables",
   "importDialog", "importForm", "importText", "memoryDialog", "memoryWord", "memoryContent", "sceneDialog", "sceneWord", "sceneDescription", "sceneWordId",
   "sceneSavedClips", "sceneClipForm", "clipUrl", "clipStart", "clipEnd", "clipTitle", "clipCaption", "sceneResults", "toast"
 ];
@@ -58,6 +64,7 @@ const el = Object.fromEntries(elementIds.map((id) => [id, document.getElementByI
 bindEvents();
 saveState();
 renderAll();
+ensureBundledCatalogs();
 registerServiceWorker();
 
 function bindEvents() {
@@ -71,10 +78,12 @@ function bindEvents() {
   el.examBannerButton.addEventListener("click", () => { setLearnMode("exam"); switchView("learn"); });
   document.getElementById("importButton").addEventListener("click", () => el.importDialog.showModal());
   document.getElementById("sampleButton").addEventListener("click", () => importWordObjects(SAMPLE_WORDS));
+  document.getElementById("importHighSchoolButton").addEventListener("click", () => importHighSchoolCatalog(true));
   document.getElementById("exportButton").addEventListener("click", exportBackup);
   document.getElementById("restoreButton").addEventListener("click", () => el.restoreFileInput.click());
   document.getElementById("resetButton").addEventListener("click", resetData);
   el.searchInput.addEventListener("input", renderLibrary);
+  el.catalogSelect.addEventListener("change", renderLibrary);
   el.filterSelect.addEventListener("change", renderLibrary);
   el.wordForm.addEventListener("submit", saveWordForm);
   el.importForm.addEventListener("submit", importWords);
@@ -103,7 +112,7 @@ function createDefaultState() {
     words: SAMPLE_WORDS.map((word) => createWord({ ...word, mnemonics: SAMPLE_MNEMONICS[word.text] })),
     clips: {}, history: [], exams: [], currentExam: null, lastExamResult: null, learningSession: null,
     examSchedule: { cycleStartedAt: started, nextExamAt: addDays(started, EXAM_INTERVAL_DAYS) },
-    settings: { dailyNewGoal: 10, dailyGoal: 30, autoSpeak: true, videoEnabled: true, autoPlayClips: true }
+    settings: { dailyNewGoal: 10, dailyGoal: 30, activeCatalog: "ielts", autoSpeak: true, videoEnabled: true, autoPlayClips: true, highSchoolCatalogImported: false }
   };
 }
 
@@ -127,9 +136,11 @@ function normalizeState(input) {
     settings: {
       dailyNewGoal: clamp(Number(input.settings?.dailyNewGoal) || 10, 1, 50),
       dailyGoal: clamp(Number(input.settings?.dailyGoal) || 30, 1, 300),
+      activeCatalog: normalizeCatalog(input.settings?.activeCatalog || "ielts", true),
       autoSpeak: Boolean(input.settings?.autoSpeak ?? true),
       videoEnabled: Boolean(input.settings?.videoEnabled ?? true),
-      autoPlayClips: Boolean(input.settings?.autoPlayClips ?? true)
+      autoPlayClips: Boolean(input.settings?.autoPlayClips ?? true),
+      highSchoolCatalogImported: Boolean(input.settings?.highSchoolCatalogImported)
     }
   };
   if (!output.words.length) output.words = fallback.words;
@@ -139,7 +150,8 @@ function normalizeState(input) {
 function createWord(data) {
   return normalizeWord({
     id: makeId("word"), text: data.text, meaning: data.meaning, phonetic: data.phonetic || "",
-    example: data.example || "", tags: data.tags || ["雅思"], mnemonics: normalizeMnemonics(data.mnemonics, data.text), status: data.status || "new",
+    example: data.example || "", tags: data.tags || [catalogLabel(data.catalog || "ielts")], catalog: data.catalog || inferCatalog(data), catalogs: data.catalogs,
+    mnemonics: normalizeMnemonics(data.mnemonics, data.text), status: data.status || "new",
     repetitions: 0, easeFactor: 2.5, intervalDays: 0, lapseCount: 0, correct: 0, wrong: 0,
     createdAt: new Date().toISOString(), learnedAt: null, lastReviewed: null, nextReview: todayKey()
   });
@@ -152,8 +164,10 @@ function normalizeWord(word) {
   const status = ["new", "learning", "review", "mastered"].includes(word.status)
     ? word.status : (word.lastReviewed ? (Number(word.level) >= 5 ? "mastered" : "review") : "new");
   return {
-    id: word.id || makeId("word"), text: String(word.text).trim(), meaning: String(word.meaning).trim(),
-    phonetic: String(word.phonetic || "").trim(), example: String(word.example || "").trim(), tags: splitTags(word.tags || "雅思"), mnemonics: normalizeMnemonics(word.mnemonics, word.text),
+    id: word.id || makeId("word"), text: repairWordText(String(word.text).trim()), meaning: String(word.meaning).trim(),
+    phonetic: String(word.phonetic || "").trim(), example: String(word.example || "").trim(), tags: splitTags(word.tags || catalogLabel(inferCatalog(word))),
+    catalog: normalizeCatalog(word.catalog || inferCatalog(word)), catalogs: normalizeCatalogs(word.catalogs || [word.catalog || inferCatalog(word)]),
+    mnemonics: normalizeMnemonics(word.mnemonics, word.text),
     status, repetitions, easeFactor: clamp(Number(word.easeFactor) || 2.5, 1.3, 3.0),
     intervalDays: Number.isFinite(storedInterval) ? Math.max(0, storedInterval) : legacyInterval(word.level), lapseCount: Math.max(0, Number(word.lapseCount) || 0),
     level: clamp(Number(word.level) || repetitions + 1, 1, 6), correct: Math.max(0, Number(word.correct) || 0), wrong: Math.max(0, Number(word.wrong) || 0),
@@ -262,7 +276,7 @@ function renderHome() {
   el.dueCount.textContent = due;
   el.todayCount.textContent = done;
   el.streakCount.textContent = `${learningStreak()}天`;
-  el.memorySummary.textContent = `今日新词 ${newAvailable} 个，待复习 ${due} 个。`;
+  el.memorySummary.textContent = `${activeCatalogLabel()}：今日新词 ${newAvailable} 个，待复习 ${due} 个。`;
   renderExamBanner();
   renderWordList(el.weakWordList, weakWords().slice(0, 4), true);
 }
@@ -476,9 +490,11 @@ function renderScoreDetails(record) {
 
 function renderLibrary() {
   const query = el.searchInput.value.trim().toLowerCase();
+  const catalog = el.catalogSelect.value;
   const filter = el.filterSelect.value;
   const words = state.words.filter((word) => {
-    const searchable = [word.text, word.meaning, word.example, ...word.tags].join(" ").toLowerCase();
+    if (catalog !== "all" && !wordMatchesCatalog(word, catalog)) return false;
+    const searchable = [word.text, word.meaning, word.example, catalogLabel(word.catalog), ...word.tags].join(" ").toLowerCase();
     if (query && !searchable.includes(query)) return false;
     if (filter === "new") return word.status === "new";
     if (filter === "due") return word.status !== "new" && word.nextReview <= todayKey();
@@ -495,7 +511,8 @@ function renderWordList(container, words, compact) {
   words.forEach((word) => {
     const item = document.createElement("li"); item.className = "word-item";
     const sceneButton = state.settings.videoEnabled ? `<button class="secondary-button" data-action="scene" data-id="${word.id}">影视语境</button>` : "";
-    item.innerHTML = `<div><h3>${escapeHtml(word.text)}</h3><p>${escapeHtml(word.meaning)}</p><div class="word-meta"><span class="pill">${statusLabel(word.status)}</span><span class="pill">${word.status === "new" ? "未安排" : formatDue(word.nextReview)}</span>${word.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div></div>${compact ? "" : `<div class="item-actions"><button class="secondary-button" data-action="speak" data-id="${word.id}">朗读</button><button class="secondary-button" data-action="memory" data-id="${word.id}">记忆法</button>${sceneButton}<button class="secondary-button" data-action="edit" data-id="${word.id}">编辑</button><button class="danger-button" data-action="delete" data-id="${word.id}">删除</button></div>`}`;
+    const catalogPills = normalizeCatalogs(word.catalogs || [word.catalog]).map((catalog) => `<span class="pill catalog-pill">${escapeHtml(catalogLabel(catalog))}</span>`).join("");
+    item.innerHTML = `<div><h3>${escapeHtml(word.text)}</h3><p>${escapeHtml(word.meaning)}</p><div class="word-meta">${catalogPills}<span class="pill">${statusLabel(word.status)}</span><span class="pill">${word.status === "new" ? "未安排" : formatDue(word.nextReview)}</span>${word.tags.map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div></div>${compact ? "" : `<div class="item-actions"><button class="secondary-button" data-action="speak" data-id="${word.id}">朗读</button><button class="secondary-button" data-action="memory" data-id="${word.id}">记忆法</button>${sceneButton}<button class="secondary-button" data-action="edit" data-id="${word.id}">编辑</button><button class="danger-button" data-action="delete" data-id="${word.id}">删除</button></div>`}`;
     container.append(item);
   });
   container.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => handleWordAction(button.dataset.action, button.dataset.id)));
@@ -657,17 +674,18 @@ const clipProvider = new FreeContextProvider();
 function openWordDialog(id = "") {
   const word = state.words.find((item) => item.id === id);
   const memory = word?.mnemonics || normalizeMnemonics(null, word?.text || "");
-  el.wordDialogTitle.textContent = word ? "编辑单词" : "添加单词"; el.wordId.value = word?.id || ""; el.wordText.value = word?.text || ""; el.wordMeaning.value = word?.meaning || ""; el.wordPhonetic.value = word?.phonetic || ""; el.wordTags.value = word?.tags.join(", ") || "雅思"; el.wordExample.value = word?.example || ""; el.mnemonicRoots.value = memory.roots; el.mnemonicAssociation.value = memory.association; el.mnemonicFamily.value = memory.family; el.mnemonicSyllables.value = memory.syllables; el.wordDialog.showModal();
+  const catalog = normalizeCatalog(word?.catalog || state.settings.activeCatalog || "ielts");
+  el.wordDialogTitle.textContent = word ? "编辑单词" : "添加单词"; el.wordId.value = word?.id || ""; el.wordText.value = word?.text || ""; el.wordMeaning.value = word?.meaning || ""; el.wordPhonetic.value = word?.phonetic || ""; el.wordCatalog.value = catalog; el.wordTags.value = word?.tags.join(", ") || catalogLabel(catalog); el.wordExample.value = word?.example || ""; el.mnemonicRoots.value = memory.roots; el.mnemonicAssociation.value = memory.association; el.mnemonicFamily.value = memory.family; el.mnemonicSyllables.value = memory.syllables; el.wordDialog.showModal();
 }
 
 function saveWordForm(event) {
   event.preventDefault();
   const id = el.wordId.value;
   const mnemonics = { roots: el.mnemonicRoots.value, association: el.mnemonicAssociation.value, family: el.mnemonicFamily.value, syllables: el.mnemonicSyllables.value };
-  const payload = createWord({ text: el.wordText.value, meaning: el.wordMeaning.value, phonetic: el.wordPhonetic.value, example: el.wordExample.value, tags: splitTags(el.wordTags.value), mnemonics });
+  const payload = createWord({ text: el.wordText.value, meaning: el.wordMeaning.value, phonetic: el.wordPhonetic.value, example: el.wordExample.value, tags: splitTags(el.wordTags.value), catalog: el.wordCatalog.value, mnemonics });
   if (!payload) return;
   const index = state.words.findIndex((word) => word.id === id);
-  if (index >= 0) state.words[index] = { ...state.words[index], text: payload.text, meaning: payload.meaning, phonetic: payload.phonetic, example: payload.example, tags: payload.tags, mnemonics: payload.mnemonics }; else state.words.unshift(payload);
+  if (index >= 0) state.words[index] = { ...state.words[index], text: payload.text, meaning: payload.meaning, phonetic: payload.phonetic, example: payload.example, tags: payload.tags, catalog: payload.catalog, catalogs: payload.catalogs, mnemonics: payload.mnemonics }; else state.words.unshift(payload);
   saveState(); el.wordDialog.close(); el.wordForm.reset(); renderAll(); showToast("单词已保存");
 }
 
@@ -675,21 +693,64 @@ function importWords(event) {
   event.preventDefault(); const raw = el.importText.value.trim(); if (!raw) return;
   let words;
   try { const parsed = JSON.parse(raw); if (!Array.isArray(parsed)) throw new Error(); words = parsed; }
-  catch { words = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => { const [text, meaning, example = "", tags = "雅思"] = line.split("|").map((part) => part.trim()); return { text, meaning, example, tags: splitTags(tags) }; }); }
-  importWordObjects(words);
+  catch { words = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => { const [text, meaning, example = "", tags = catalogLabel(state.settings.activeCatalog)] = line.split("|").map((part) => part.trim()); return { text, meaning, example, tags: splitTags(tags), catalog: state.settings.activeCatalog }; }); }
+  importWordObjects(words, { catalog: state.settings.activeCatalog === "all" ? "ielts" : state.settings.activeCatalog });
 }
 
-function importWordObjects(rawWords) {
-  const existing = new Set(state.words.map((word) => word.text.toLowerCase())); const imported = [];
-  rawWords.forEach((raw) => { const word = createWord(raw); if (word && !existing.has(word.text.toLowerCase())) { imported.push(word); existing.add(word.text.toLowerCase()); } });
-  if (!imported.length) return showToast("没有可导入的新单词");
-  state.words.unshift(...imported); saveState(); if (el.importDialog.open) el.importDialog.close(); el.importForm.reset(); renderAll(); showToast(`已导入 ${imported.length} 个单词`);
+function importWordObjects(rawWords, options = {}) {
+  const existing = new Map(state.words.map((word) => [word.text.toLowerCase(), word]));
+  let imported = 0, updated = 0;
+  rawWords.forEach((raw) => {
+    const payload = { ...raw, catalog: options.catalog || raw.catalog || inferCatalog(raw) };
+    const word = createWord(payload);
+    if (!word) return;
+    const found = existing.get(word.text.toLowerCase());
+    if (found) {
+      found.catalogs = normalizeCatalogs([...(found.catalogs || [found.catalog]), ...(word.catalogs || [word.catalog])]);
+      found.catalog = normalizeCatalog(found.catalog || found.catalogs[0]);
+      found.tags = uniqueStrings([...(found.tags || []), ...word.tags]);
+      if (!found.meaning && word.meaning) found.meaning = word.meaning;
+      if (!found.example && word.example) found.example = word.example;
+      updated += 1;
+      return;
+    }
+    state.words.unshift(word);
+    existing.set(word.text.toLowerCase(), word);
+    imported += 1;
+  });
+  if (!imported && !updated) return showToast("没有可导入的新单词");
+  saveState(); if (el.importDialog.open) el.importDialog.close(); el.importForm.reset(); renderAll();
+  showToast(`已新增 ${imported} 个，更新 ${updated} 个`);
+}
+
+async function ensureBundledCatalogs() {
+  if (state.settings.highSchoolCatalogImported || state.words.some((word) => wordMatchesCatalog(word, "highschool"))) return;
+  await importHighSchoolCatalog(false);
+}
+
+async function importHighSchoolCatalog(showResult = true) {
+  try {
+    let catalog = window.WORD_TUO_HIGH_SCHOOL_CATALOG;
+    if (!catalog && typeof fetch === "function") {
+      const response = await fetch(HIGH_SCHOOL_CATALOG_URL, { cache: "no-cache" });
+      if (!response.ok) throw new Error("catalog request failed");
+      catalog = await response.json();
+    }
+    if (!catalog || !Array.isArray(catalog.words) || !catalog.words.length) throw new Error("catalog empty");
+    importWordObjects(catalog.words, { catalog: "highschool" });
+    state.settings.highSchoolCatalogImported = true;
+    saveState(); renderAll();
+    if (showResult) showToast(`高中词库已就绪：${catalog.words.length} 条`);
+  } catch {
+    if (showResult) showToast("高中词库导入失败，请稍后重试");
+  }
 }
 
 function renderStats() {
+  const visibleWords = filterWordsByActiveCatalog(state.words);
   const statuses = ["new", "learning", "review", "mastered"];
-  const counts = statuses.map((status) => state.words.filter((word) => word.status === status).length); const max = Math.max(...counts, 1);
-  el.masteryRate.textContent = `${Math.round(counts[3] / Math.max(state.words.length, 1) * 100)}%`;
+  const counts = statuses.map((status) => visibleWords.filter((word) => word.status === status).length); const max = Math.max(...counts, 1);
+  el.masteryRate.textContent = `${Math.round(counts[3] / Math.max(visibleWords.length, 1) * 100)}%`;
   el.levelBars.innerHTML = counts.map((count, index) => `<div><div class="bar-label"><span>${statusLabel(statuses[index])}</span><strong>${count}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${count / max * 100}%"></div></div></div>`).join("");
   el.examHistoryList.innerHTML = "";
   if (!state.exams.length) el.examHistoryList.append(emptyItem("完成三周抽查后，这里会显示成绩。"));
@@ -700,11 +761,11 @@ function renderStats() {
 }
 
 function renderSettings() {
-  el.dailyNewGoalInput.value = state.settings.dailyNewGoal; el.dailyGoalInput.value = state.settings.dailyGoal; el.autoSpeakInput.checked = state.settings.autoSpeak; el.videoEnabledInput.checked = state.settings.videoEnabled; el.autoPlayClipsInput.checked = state.settings.autoPlayClips; el.nextExamSetting.textContent = `下一场正式抽查：${formatDateKey(state.examSchedule.nextExamAt)}`;
+  el.dailyNewGoalInput.value = state.settings.dailyNewGoal; el.dailyGoalInput.value = state.settings.dailyGoal; el.activeCatalogInput.value = state.settings.activeCatalog; el.autoSpeakInput.checked = state.settings.autoSpeak; el.videoEnabledInput.checked = state.settings.videoEnabled; el.autoPlayClipsInput.checked = state.settings.autoPlayClips; el.nextExamSetting.textContent = `当前学习：${activeCatalogLabel()}；下一场正式抽查：${formatDateKey(state.examSchedule.nextExamAt)}`;
 }
 
 function saveSettings(event) {
-  event.preventDefault(); state.settings.dailyNewGoal = clamp(Number(el.dailyNewGoalInput.value) || 10, 1, 50); state.settings.dailyGoal = clamp(Number(el.dailyGoalInput.value) || 30, 1, 300); state.settings.autoSpeak = el.autoSpeakInput.checked; state.settings.videoEnabled = el.videoEnabledInput.checked; state.settings.autoPlayClips = el.autoPlayClipsInput.checked; saveState(); renderAll(); showToast("设置已保存");
+  event.preventDefault(); const previousCatalog = state.settings.activeCatalog; state.settings.dailyNewGoal = clamp(Number(el.dailyNewGoalInput.value) || 10, 1, 50); state.settings.dailyGoal = clamp(Number(el.dailyGoalInput.value) || 30, 1, 300); state.settings.activeCatalog = normalizeCatalog(el.activeCatalogInput.value, true); if (previousCatalog !== state.settings.activeCatalog) state.learningSession = null; state.settings.autoSpeak = el.autoSpeakInput.checked; state.settings.videoEnabled = el.videoEnabledInput.checked; state.settings.autoPlayClips = el.autoPlayClipsInput.checked; saveState(); renderAll(); showToast(`已切换到${activeCatalogLabel()}`);
 }
 
 function exportBackup() {
@@ -728,10 +789,10 @@ function resetData() {
 function getTodayNewWords() {
   const learned = new Set(state.history.filter((record) => record.type === "new-complete" && record.reviewedAt.slice(0,10) === todayKey()).map((record) => record.wordId));
   const remaining = Math.max(0, state.settings.dailyNewGoal - learned.size);
-  return state.words.filter((word) => word.status === "new").slice(0, remaining);
+  return filterWordsByActiveCatalog(state.words).filter((word) => word.status === "new").slice(0, remaining);
 }
-function getDueWords() { return state.words.filter((word) => word.status !== "new" && word.nextReview <= todayKey()).sort((a,b) => statusRank(a.status) - statusRank(b.status) || b.lapseCount - a.lapseCount || a.text.localeCompare(b.text)); }
-function weakWords() { return state.words.filter((word) => word.status === "learning" || word.lapseCount > 0 || word.wrong > word.correct).sort((a,b) => b.lapseCount - a.lapseCount || b.wrong - a.wrong); }
+function getDueWords() { return filterWordsByActiveCatalog(state.words).filter((word) => word.status !== "new" && word.nextReview <= todayKey()).sort((a,b) => statusRank(a.status) - statusRank(b.status) || b.lapseCount - a.lapseCount || a.text.localeCompare(b.text)); }
+function weakWords() { return filterWordsByActiveCatalog(state.words).filter((word) => word.status === "learning" || word.lapseCount > 0 || word.wrong > word.correct).sort((a,b) => b.lapseCount - a.lapseCount || b.wrong - a.wrong); }
 function todayRecords() { return state.history.filter((record) => record.reviewedAt.slice(0,10) === todayKey()); }
 function learningStreak() { const days = new Set(state.history.map((record) => record.reviewedAt.slice(0,10))); let cursor = new Date(); if (!days.has(dateKey(cursor))) cursor.setDate(cursor.getDate() - 1); let count = 0; while (days.has(dateKey(cursor))) { count += 1; cursor.setDate(cursor.getDate() - 1); } return count; }
 function isExamDue() { return todayKey() >= state.examSchedule.nextExamAt; }
@@ -743,6 +804,38 @@ function shuffle(items) { for (let i = items.length - 1; i > 0; i -= 1) { const 
 function statusRank(status) { return { learning: 0, new: 1, review: 2, mastered: 3 }[status] ?? 4; }
 function statusLabel(status) { return { new: "未学习", learning: "学习中", review: "复习中", mastered: "已掌握" }[status] || status; }
 function legacyInterval(level) { return Number(level) <= 1 ? 0 : Number(level) === 2 ? 1 : Number(level) === 3 ? 3 : Number(level) === 4 ? 7 : Number(level) === 5 ? 15 : 30; }
+function normalizeCatalog(value, allowAll = false) {
+  const catalog = String(value || "").toLowerCase();
+  if (allowAll && catalog === "all") return "all";
+  return catalog === "highschool" ? "highschool" : "ielts";
+}
+function normalizeCatalogs(values) {
+  const list = (Array.isArray(values) ? values : [values]).map((value) => normalizeCatalog(value)).filter(Boolean);
+  return uniqueStrings(list.length ? list : ["ielts"]);
+}
+function catalogLabel(catalog) { return CATALOGS[normalizeCatalog(catalog, true)] || CATALOGS.ielts; }
+function activeCatalogLabel() { return catalogLabel(state.settings.activeCatalog); }
+function inferCatalog(word) {
+  const tags = splitTags(word?.tags || "");
+  return tags.some((tag) => /高中|人教|必修/.test(tag)) ? "highschool" : "ielts";
+}
+function repairWordText(text) {
+  const fixes = { deion: "description", "teenager (13": "teenager", "ache /": "headache", "paraphrase / （": "paraphrase" };
+  let value = fixes[text] || text;
+  value = value.replace(/\s*\/.*$/, "").trim();
+  value = value.replace(/(?:adj|adv|vt|vi|prep|pron|conj|num)$/i, "").trim();
+  if (/nn$/i.test(value) || (/[a-z]n$/i.test(value) && !/(tion|sion|ion|ain|een|oon|ern|orn|own|ian|man|men|in|on)$/i.test(value))) value = value.slice(0, -1);
+  return value.replace(/\s+/g, " ").trim();
+}
+function wordMatchesCatalog(word, catalog) {
+  const wanted = normalizeCatalog(catalog);
+  return normalizeCatalogs(word.catalogs || [word.catalog || inferCatalog(word)]).includes(wanted);
+}
+function filterWordsByActiveCatalog(words) {
+  const catalog = normalizeCatalog(state.settings.activeCatalog, true);
+  return catalog === "all" ? words : words.filter((word) => wordMatchesCatalog(word, catalog));
+}
+function uniqueStrings(values) { return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))]; }
 function splitTags(value) { return (Array.isArray(value) ? value : String(value).split(/[,，]/)).map((tag) => String(tag).trim()).filter(Boolean); }
 function todayKey() { return dateKey(new Date()); }
 function dateKey(date) { const y = date.getFullYear(); const m = String(date.getMonth() + 1).padStart(2, "0"); const d = String(date.getDate()).padStart(2, "0"); return `${y}-${m}-${d}`; }

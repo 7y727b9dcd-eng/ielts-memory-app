@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=5" />
+    <link rel="stylesheet" href="./styles.css?v=10" />
   </head>
   <body>
     <div class="app-shell">
@@ -69,8 +69,8 @@
         </section>
 
         <section class="view" id="libraryView">
-          <div class="toolbar"><input id="searchInput" type="search" placeholder="搜索单词、释义或标签" /><select id="filterSelect" aria-label="筛选词库"><option value="all">全部</option><option value="new">未学习</option><option value="due">待复习</option><option value="weak">薄弱词</option><option value="mastered">已掌握</option></select></div>
-          <div class="command-row stacked-mobile"><button class="secondary-button" id="importButton">批量导入</button><button class="secondary-button" id="sampleButton">补充示例词</button></div>
+          <div class="toolbar library-toolbar"><input id="searchInput" type="search" placeholder="搜索单词、释义或标签" /><select id="catalogSelect" aria-label="选择词库"><option value="all">全部词库</option><option value="ielts">雅思词库</option><option value="highschool">高中人教版</option></select><select id="filterSelect" aria-label="筛选词库"><option value="all">全部状态</option><option value="new">未学习</option><option value="due">待复习</option><option value="weak">薄弱词</option><option value="mastered">已掌握</option></select></div>
+          <div class="command-row stacked-mobile"><button class="secondary-button" id="importButton">批量导入</button><button class="secondary-button" id="sampleButton">补充雅思示例词</button><button class="secondary-button" id="importHighSchoolButton">导入高中词库</button></div>
           <ul class="word-list" id="libraryList"></ul>
         </section>
 
@@ -86,6 +86,7 @@
             <form class="settings-form" id="settingsForm">
               <label>每日新词<input id="dailyNewGoalInput" type="number" min="1" max="50" inputmode="numeric" /></label>
               <label>每日总目标<input id="dailyGoalInput" type="number" min="1" max="300" inputmode="numeric" /></label>
+              <label>学习词库<select id="activeCatalogInput"><option value="ielts">雅思词库</option><option value="highschool">高中人教版</option><option value="all">全部词库</option></select></label>
               <label class="toggle-label"><input id="autoSpeakInput" type="checkbox" />复习时自动朗读</label>
               <label class="toggle-label"><input id="videoEnabledInput" type="checkbox" />显示影视语境实验功能</label>
               <label class="toggle-label"><input id="autoPlayClipsInput" type="checkbox" />进入影视语境时自动播放</label>
@@ -106,11 +107,12 @@
       </nav>
     </div>
 
-    <dialog id="wordDialog"><form class="dialog-form" id="wordForm"><div class="dialog-heading"><h2 id="wordDialogTitle">添加单词</h2><button type="button" class="close-button" data-close="wordDialog" aria-label="关闭">×</button></div><input type="hidden" id="wordId" /><label>英文单词<input id="wordText" required autocapitalize="none" autocomplete="off" /></label><label>中文释义<textarea id="wordMeaning" required rows="3"></textarea></label><div class="form-grid"><label>音标<input id="wordPhonetic" placeholder="/.../" /></label><label>标签<input id="wordTags" placeholder="雅思, 阅读" /></label></div><label>例句<textarea id="wordExample" rows="3"></textarea></label><details class="memory-editor"><summary>记忆辅助（可选）</summary><label>词根词缀<textarea id="mnemonicRoots" rows="2" placeholder="例如：in- 不 + evit 避免 + -able 能够"></textarea></label><label>联想钩子<textarea id="mnemonicAssociation" rows="2" placeholder="用一句容易记住的话建立联系"></textarea></label><label>词族<textarea id="mnemonicFamily" rows="2" placeholder="例如：avoid, avoidable, unavoidable"></textarea></label><label>音节拼写<input id="mnemonicSyllables" placeholder="例如：in · ev · it · a · ble" /></label></details><div class="dialog-actions"><button type="button" class="secondary-button" data-close="wordDialog">取消</button><button class="primary-button" type="submit">保存</button></div></form></dialog>
+    <dialog id="wordDialog"><form class="dialog-form" id="wordForm"><div class="dialog-heading"><h2 id="wordDialogTitle">添加单词</h2><button type="button" class="close-button" data-close="wordDialog" aria-label="关闭">×</button></div><input type="hidden" id="wordId" /><label>英文单词<input id="wordText" required autocapitalize="none" autocomplete="off" /></label><label>中文释义<textarea id="wordMeaning" required rows="3"></textarea></label><div class="form-grid"><label>音标<input id="wordPhonetic" placeholder="/.../" /></label><label>所属词库<select id="wordCatalog"><option value="ielts">雅思词库</option><option value="highschool">高中人教版</option></select></label></div><label>标签<input id="wordTags" placeholder="雅思, 阅读" /></label><label>例句<textarea id="wordExample" rows="3"></textarea></label><details class="memory-editor"><summary>记忆辅助（可选）</summary><label>词根词缀<textarea id="mnemonicRoots" rows="2" placeholder="例如：in- 不 + evit 避免 + -able 能够"></textarea></label><label>联想钩子<textarea id="mnemonicAssociation" rows="2" placeholder="用一句容易记住的话建立联系"></textarea></label><label>词族<textarea id="mnemonicFamily" rows="2" placeholder="例如：avoid, avoidable, unavoidable"></textarea></label><label>音节拼写<input id="mnemonicSyllables" placeholder="例如：in · ev · it · a · ble" /></label></details><div class="dialog-actions"><button type="button" class="secondary-button" data-close="wordDialog">取消</button><button class="primary-button" type="submit">保存</button></div></form></dialog>
     <dialog id="importDialog"><form class="dialog-form" id="importForm"><div class="dialog-heading"><h2>批量导入</h2><button type="button" class="close-button" data-close="importDialog" aria-label="关闭">×</button></div><p class="muted">每行格式：单词 | 中文释义 | 英文例句 | 标签。也支持 JSON 数组。</p><textarea id="importText" rows="10" placeholder="substantial | 大量的；重要的 | The report shows a substantial increase. | 雅思, 写作"></textarea><div class="dialog-actions"><button type="button" class="secondary-button" data-close="importDialog">取消</button><button class="primary-button" type="submit">导入</button></div></form></dialog>
     <dialog id="memoryDialog"><div class="dialog-form"><div class="dialog-heading"><div><p class="eyebrow">MEMORY TOOLS</p><h2 id="memoryWord">五种记忆法</h2></div><button type="button" class="close-button" data-close="memoryDialog" aria-label="关闭">×</button></div><div id="memoryContent"></div></div></dialog>
     <dialog id="sceneDialog"><div class="dialog-form"><div class="dialog-heading"><div><p class="eyebrow">VIDEO CONTEXT</p><h2 id="sceneWord">影视语境</h2></div><button type="button" class="close-button" data-close="sceneDialog" aria-label="关闭">×</button></div><p class="muted" id="sceneDescription"></p><input type="hidden" id="sceneWordId" /><div id="sceneSavedClips" class="scene-results"></div><details class="clip-editor" id="clipEditor"><summary>添加5–20秒公开视频片段</summary><form class="dialog-form" id="sceneClipForm"><label>视频链接<input id="clipUrl" type="url" required placeholder="YouTube 链接或 HTTPS 的 MP4/WebM 链接" /></label><div class="form-grid"><label>开始秒数<input id="clipStart" type="number" min="0" value="0" required /></label><label>结束秒数<input id="clipEnd" type="number" min="5" value="10" required /></label></div><label>场景标题<input id="clipTitle" required placeholder="作品名或场景说明" /></label><label>字幕/记忆提示<textarea id="clipCaption" rows="2" placeholder="包含该单词的台词"></textarea></label><button class="primary-button" type="submit">保存并预加载</button></form></details><div><p class="eyebrow">SEARCH SOURCES</p><div id="sceneResults" class="scene-results"></div></div></div></dialog>
     <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=5"></script>
+    <script src="./data/pep-highschool-2019.js?v=10"></script>
+    <script src="./app.js?v=10"></script>
   </body>
 </html>
