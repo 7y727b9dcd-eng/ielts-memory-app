@@ -36,7 +36,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 
 .hero { min-height: 400px; border-radius: 34px; background: var(--green); color: white; padding: clamp(30px, 6vw, 72px); display: grid; grid-template-columns: 1.2fr .8fr; align-items: center; gap: 32px; overflow: hidden; position: relative; box-shadow: var(--shadow); }
-.hero::after { content: ""; position: absolute; width: 370px; height: 370px; right: -160px; bottom: -220px; border: 70px solid rgba(220,235,184,.09); border-radius: 50%; }
+.hero::after { content: ""; position: absolute; width: 370px; height: 370px; right: -160px; bottom: -220px; border: 70px solid rgba(220,235,184,.09); border-radius: 50%; pointer-events: none; }
+.hero-copy { position: relative; z-index: 1; }
 .hero h1 { font-size: clamp(40px, 6vw, 72px); line-height: 1.06; letter-spacing: -.055em; margin: 10px 0 20px; max-width: 720px; }
 .hero p:not(.eyebrow) { color: rgba(255,255,255,.72); line-height: 1.75; max-width: 570px; }
 .eyebrow { text-transform: uppercase; letter-spacing: .16em; font-weight: 750; font-size: 12px; margin: 0; opacity: .72; }
@@ -52,7 +53,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
 .danger-button { background: #fff0ed; color: #a44535; border: 1px solid #f2ccc4; }
 .text-button { min-height: 44px; border: 0; background: transparent; color: inherit; font-weight: 700; cursor: pointer; padding: 8px 0; display: inline-flex; align-items: center; }
 
-.focus-orbit { width: 290px; height: 290px; justify-self: center; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; position: relative; animation: breathe 5s ease-in-out infinite; }
+.focus-orbit { width: 290px; height: 290px; justify-self: center; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; position: relative; animation: breathe 5s ease-in-out infinite; pointer-events: none; }
 .focus-orbit::before { content: ""; position: absolute; inset: 54px; border: 1px solid rgba(255,255,255,.18); border-radius: 50%; }
 .focus-orbit b { position: absolute; inset: 92px; display: grid; place-items: center; background: var(--lime); color: var(--green); border-radius: 50%; font-size: 22px; }
 .focus-orbit span { position: absolute; padding: 8px 12px; border-radius: 99px; background: rgba(255,255,255,.11); font-size: 13px; }

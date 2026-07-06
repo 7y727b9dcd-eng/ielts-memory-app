@@ -123,6 +123,13 @@ test("interactive speaker setup uses generated speaker choices instead of voice 
   assert.doesNotMatch(index, /\u6c89\u7a33\u8bf4\u660e/);
 });
 
+test("decorative mobile layers do not intercept training entry taps", () => {
+  const css = fs.readFileSync("styles.css", "utf8");
+  assert.match(css, /\.hero::after\s*\{[^}]*pointer-events:\s*none/s);
+  assert.match(css, /\.hero-copy\s*\{[^}]*position:\s*relative[^}]*z-index:\s*1/s);
+  assert.match(css, /\.focus-orbit\s*\{[^}]*pointer-events:\s*none/s);
+});
+
 test("task 3 upgrades the browser contract to v2 cloud voice health checks", () => {
   assert.match(app, /const AUDIO_CACHE_NAME = "listening-training-audio-v2";/);
   assert.match(app, /const TTS_VERSION = "2";/);
@@ -136,20 +143,20 @@ test("task 3 upgrades the browser contract to v2 cloud voice health checks", () 
   assert.match(app, /version\s*===\s*2|version\s*!==\s*2|Number\(.*version.*\)\s*===\s*2/s);
 });
 
-test("task 3 keeps web assets aligned on pwa v17 while preserving audio cache v2", () => {
-  assert.match(index, /href="\.\/manifest\.webmanifest\?v=17"/);
-  assert.match(index, /styles\.css\?v=17/);
-  assert.match(index, /training-core\.js\?v=17/);
-  assert.match(index, /voice-core\.js\?v=17/);
-  assert.match(index, /app\.js\?v=17/);
-  assert.match(manifest, /"start_url": "\.\/index\.html\?v=17"/);
-  assert.match(worker, /const CACHE_NAME = "listening-training-pwa-v17";/);
+test("task 3 keeps web assets aligned on pwa v18 while preserving audio cache v2", () => {
+  assert.match(index, /href="\.\/manifest\.webmanifest\?v=18"/);
+  assert.match(index, /styles\.css\?v=18/);
+  assert.match(index, /training-core\.js\?v=18/);
+  assert.match(index, /voice-core\.js\?v=18/);
+  assert.match(index, /app\.js\?v=18/);
+  assert.match(manifest, /"start_url": "\.\/index\.html\?v=18"/);
+  assert.match(worker, /const CACHE_NAME = "listening-training-pwa-v18";/);
   assert.match(worker, /const AUDIO_CACHE_NAME = "listening-training-audio-v2";/);
-  assert.match(worker, /\.\/index\.html\?v=17/);
-  assert.match(worker, /\.\/styles\.css\?v=17/);
-  assert.match(worker, /\.\/training-core\.js\?v=17/);
-  assert.match(worker, /\.\/voice-core\.js\?v=17/);
-  assert.match(worker, /\.\/app\.js\?v=17/);
+  assert.match(worker, /\.\/index\.html\?v=18/);
+  assert.match(worker, /\.\/styles\.css\?v=18/);
+  assert.match(worker, /\.\/training-core\.js\?v=18/);
+  assert.match(worker, /\.\/voice-core\.js\?v=18/);
+  assert.match(worker, /\.\/app\.js\?v=18/);
 });
 
 test("task 3 uses voices.json as the only cloud speaker catalog source", () => {

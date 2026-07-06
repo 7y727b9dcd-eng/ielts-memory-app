@@ -3,7 +3,7 @@
   "short_name": "聆听训练",
   "description": "面向中文工作对话的长段理解、细节保持与应答协调训练。",
   "lang": "zh-CN",
-  "start_url": "./index.html?v=17",
+  "start_url": "./index.html?v=18",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f5f2ea",
