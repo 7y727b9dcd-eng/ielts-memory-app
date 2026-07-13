@@ -27,7 +27,7 @@ const checks = [
   ["在线音频兜底源存在", app.includes("dict.youdao.com/dictvoice")],
   ["发音优先播放网络音频", app.includes("playWordAudio")],
   ["词根记忆法使用扩展词根表", app.includes("COMMON_ROOTS")],
-  ["资源版本已升级", index.includes("app.js?v=16") && sw.includes("word-tuo-pwa-v16")]
+  ["资源版本已升级", index.includes("app.js?v=17") && sw.includes("word-tuo-pwa-v17")]
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

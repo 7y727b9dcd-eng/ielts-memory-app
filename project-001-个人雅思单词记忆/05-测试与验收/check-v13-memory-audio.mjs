@@ -19,7 +19,7 @@ const checks = [
   ["记忆法扩展为八种", app.includes("八种记忆法") && app.includes("句子联想") && app.includes("主动回忆") && app.includes("搭配语境") && app.includes("中英反向回忆")],
   ["SM-2遗忘曲线字段存在", applyReviewBody.includes("easeFactor") && applyReviewBody.includes("intervalDays") && applyReviewBody.includes("nextReview = addDays")],
   ["到期复习按日期筛选", dueWordsBody.includes("word.nextReview <= todayKey()") && dueWordsBody.includes('word.status !== "new"')],
-  ["资源版本升级到v16", html.includes("app.js?v=16") && html.includes("styles.css?v=16") && sw.includes("word-tuo-pwa-v16")],
+  ["资源版本升级到v17", html.includes("app.js?v=17") && html.includes("styles.css?v=17") && sw.includes("word-tuo-pwa-v17")],
 ];
 
 const failed = checks.filter(([, pass]) => !pass);

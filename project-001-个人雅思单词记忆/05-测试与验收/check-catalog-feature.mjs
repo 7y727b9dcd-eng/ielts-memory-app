@@ -16,7 +16,7 @@ const checks = [
   ["词库页有词库选择器", index.includes('id="catalogSelect"')],
   ["设置页有学习词库选择器", index.includes('id="activeCatalogInput"')],
   ["高中词库数据文件存在", existsSync(vocabPath)],
-  ["高中词库脚本存在", existsSync(vocabScriptPath) && index.includes("pep-highschool-2019.js?v=16")],
+  ["高中词库脚本存在", existsSync(vocabScriptPath) && index.includes("pep-highschool-2019.js?v=17")],
   ["学习队列按当前词库过滤", app.includes("filterWordsByActiveCatalog")],
   ["可导入高中词库", app.includes("importHighSchoolCatalog")],
   ["PWA 缓存包含高中词库", sw.includes("pep-highschool-2019.json")]

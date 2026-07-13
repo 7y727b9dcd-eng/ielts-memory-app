@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=16" />
+    <link rel="stylesheet" href="./styles.css?v=17" />
   </head>
   <body>
     <div class="app-shell">
@@ -116,7 +116,7 @@
     <dialog id="onboardingDialog"><div class="dialog-form tutorial-dialog"><div class="dialog-heading"><div><p class="eyebrow">WORDTUO GUIDE</p><h2>快速上手</h2></div><span class="pill" id="onboardingProgress">1/7</span></div><div id="onboardingContent"></div><div class="dialog-actions tutorial-actions"><button type="button" class="secondary-button" id="onboardingSkipButton">先跳过</button><button type="button" class="secondary-button" id="onboardingPrevButton">上一步</button><button type="button" class="primary-button" id="onboardingNextButton">下一步</button></div></div></dialog>
     <dialog id="sceneDialog"><div class="dialog-form"><div class="dialog-heading"><div><p class="eyebrow">VIDEO CONTEXT</p><h2 id="sceneWord">影视语境</h2></div><button type="button" class="close-button" data-close="sceneDialog" aria-label="关闭">×</button></div><p class="muted" id="sceneDescription"></p><input type="hidden" id="sceneWordId" /><div id="sceneSavedClips" class="scene-results"></div><details class="clip-editor" id="clipEditor"><summary>添加5–20秒公开视频片段</summary><form class="dialog-form" id="sceneClipForm"><label>视频链接<input id="clipUrl" type="url" required placeholder="YouTube 链接或 HTTPS 的 MP4/WebM 链接" /></label><div class="form-grid"><label>开始秒数<input id="clipStart" type="number" min="0" value="0" required /></label><label>结束秒数<input id="clipEnd" type="number" min="5" value="10" required /></label></div><label>场景标题<input id="clipTitle" required placeholder="作品名或场景说明" /></label><label>字幕/记忆提示<textarea id="clipCaption" rows="2" placeholder="包含该单词的台词"></textarea></label><button class="primary-button" type="submit">保存并预加载</button></form></details><div><p class="eyebrow">SEARCH SOURCES</p><div id="sceneResults" class="scene-results"></div></div></div></dialog>
     <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
-    <script src="./data/pep-highschool-2019.js?v=16"></script>
-    <script src="./app.js?v=16"></script>
+    <script src="./data/pep-highschool-2019.js?v=17"></script>
+    <script src="./app.js?v=17"></script>
   </body>
 </html>

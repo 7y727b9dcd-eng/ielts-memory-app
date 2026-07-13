@@ -13,7 +13,7 @@ const checks = [
   ["首页有刷新今日新词按钮", html.includes('id="refreshNewWordsButton"') && app.includes("refreshDailyNewWords")],
   ["刷新会清除未完成的新词会话", app.includes('state.learningSession?.mode === "new"') && app.includes("state.learningSession = null")],
   ["没有当前词库新词时有明确提示", app.includes("showNoNewWordsGuidance") && app.includes("当前词库没有未学习单词")],
-  ["资源版本升级到v16", html.includes("app.js?v=16") && html.includes("styles.css?v=16") && sw.includes("word-tuo-pwa-v16")],
+  ["资源版本升级到v17", html.includes("app.js?v=17") && html.includes("styles.css?v=17") && sw.includes("word-tuo-pwa-v17")],
 ];
 
 const failed = checks.filter(([, pass]) => !pass);

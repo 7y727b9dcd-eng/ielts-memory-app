@@ -10,7 +10,7 @@ const checks = [
   ["定义低对比按压色", css.includes("--tap-quiet: rgba(21, 32, 25, .12)") && css.includes("--tap-pressed: rgba(21, 32, 25, .08)")],
   ["按钮和导航有按压态", css.includes(":where(button, a, summary, .option-button, .nav-item):active")],
   ["键盘焦点仍可见", css.includes(":focus-visible") && css.includes("--focus-ring")],
-  ["资源版本升级到v16", html.includes("styles.css?v=16") && html.includes("app.js?v=16") && sw.includes("word-tuo-pwa-v16")],
+  ["资源版本升级到v17", html.includes("styles.css?v=17") && html.includes("app.js?v=17") && sw.includes("word-tuo-pwa-v17")],
 ];
 
 const failed = checks.filter(([, pass]) => !pass);
