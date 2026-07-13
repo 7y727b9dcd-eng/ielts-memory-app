@@ -122,6 +122,7 @@ function bindEvents() {
   document.getElementById("quickAddButton").addEventListener("click", () => openWordDialog());
   document.getElementById("startMemoryButton").addEventListener("click", startMemorySession);
   document.getElementById("startReviewButton").addEventListener("click", startReviewSession);
+  document.getElementById("refreshNewWordsButton").addEventListener("click", refreshDailyNewWords);
   el.examBannerButton.addEventListener("click", () => { setLearnMode("exam"); switchView("learn"); });
   document.getElementById("importButton").addEventListener("click", () => el.importDialog.showModal());
   document.getElementById("sampleButton").addEventListener("click", () => importWordObjects(SAMPLE_WORDS));
@@ -434,10 +435,30 @@ function startMemorySession() {
   const words = getTodayNewWords();
   if (!words.length) {
     if (getDueWords().length) return startReviewSession();
-    showToast("今天没有新的学习任务"); return;
+    showNoNewWordsGuidance(); return;
   }
   state.learningSession = { mode: "new", wordIds: words.map((word) => word.id), index: 0, stage: "preview", answerRevealed: false, pendingQuality: 3, clozeChecked: false, clozeCorrect: false };
   saveState(); setLearnMode("new"); switchView("learn");
+}
+
+function refreshDailyNewWords() {
+  if (state.learningSession?.mode === "new") state.learningSession = null;
+  const words = getTodayNewWords();
+  saveState();
+  renderAll();
+  if (words.length) {
+    showToast(`已刷新，今日新词 ${words.length} 个`);
+    return;
+  }
+  showNoNewWordsGuidance();
+}
+
+function showNoNewWordsGuidance() {
+  const activeNew = getUnlearnedWordsForActiveCatalog().length;
+  if (activeNew) return showToast(`当前词库今日额度已用完，可在设置里调高“每日新词”`);
+  const otherNew = state.words.filter((word) => word.status === "new" && !wordMatchesCatalog(word, state.settings.activeCatalog)).length;
+  if (otherNew) return showToast("当前词库没有未学习单词，可切换到“全部词库”或其他词库");
+  showToast("当前词库没有未学习单词，请先导入或添加新单词");
 }
 
 function startReviewSession() {
@@ -1145,10 +1166,19 @@ function resetData() {
 }
 
 function getTodayNewWords() {
-  const learned = new Set(state.history.filter((record) => record.type === "new-complete" && record.reviewedAt.slice(0,10) === todayKey()).map((record) => record.wordId));
-  const remaining = Math.max(0, state.settings.dailyNewGoal - learned.size);
-  return filterWordsByActiveCatalog(state.words).filter((word) => word.status === "new").slice(0, remaining);
+  const remaining = Math.max(0, state.settings.dailyNewGoal - countTodayNewCompletedForActiveCatalog());
+  return getUnlearnedWordsForActiveCatalog().slice(0, remaining);
 }
+function countTodayNewCompletedForActiveCatalog() {
+  const learned = new Set();
+  state.history.forEach((record) => {
+    if (record.type !== "new-complete" || record.reviewedAt.slice(0,10) !== todayKey()) return;
+    const word = findWord(record.wordId);
+    if (word && wordMatchesCatalog(word, state.settings.activeCatalog)) learned.add(word.id);
+  });
+  return learned.size;
+}
+function getUnlearnedWordsForActiveCatalog() { return filterWordsByActiveCatalog(state.words).filter((word) => word.status === "new"); }
 function getDueWords() { return filterWordsByActiveCatalog(state.words).filter((word) => word.status !== "new" && word.nextReview <= todayKey()).sort((a,b) => statusRank(a.status) - statusRank(b.status) || b.lapseCount - a.lapseCount || a.text.localeCompare(b.text)); }
 function weakWords() { return filterWordsByActiveCatalog(state.words).filter((word) => word.status === "learning" || word.lapseCount > 0 || word.wrong > word.correct).sort((a,b) => b.lapseCount - a.lapseCount || b.wrong - a.wrong); }
 function todayRecords() { return state.history.filter((record) => record.reviewedAt.slice(0,10) === todayKey()); }
@@ -1284,13 +1314,15 @@ function repairWordText(text) {
   return value.replace(/\s+/g, " ").trim();
 }
 function wordMatchesCatalog(word, catalog) {
-  const wanted = normalizeCatalog(catalog);
+  const wanted = normalizeCatalog(catalog, true);
+  if (wanted === "all") return true;
   return normalizeCatalogs(word.catalogs || [word.catalog || inferCatalog(word)]).includes(wanted);
 }
 function filterWordsByActiveCatalog(words) {
   const catalog = normalizeCatalog(state.settings.activeCatalog, true);
   return catalog === "all" ? words : words.filter((word) => wordMatchesCatalog(word, catalog));
 }
+function findWord(id) { return state.words.find((word) => word.id === id); }
 function uniqueStrings(values) { return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))]; }
 function splitTags(value) { return (Array.isArray(value) ? value : String(value).split(/[,，]/)).map((tag) => String(tag).trim()).filter(Boolean); }
 function todayKey() { return dateKey(new Date()); }

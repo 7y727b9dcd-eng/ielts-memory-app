@@ -16,7 +16,7 @@ const checks = [
   ["教程可从设置重新打开", html.includes('id="tutorialButton"') && app.includes("openOnboarding")],
   ["教程覆盖主要功能", app.includes("学习入口") && app.includes("词库切换") && app.includes("三周抽查") && app.includes("本地备份")],
   ["教程样式存在", css.includes(".tutorial-card") && css.includes(".tutorial-steps")],
-  ["资源版本升级到v15", html.includes("app.js?v=15") && html.includes("styles.css?v=15") && sw.includes("word-tuo-pwa-v15")],
+  ["资源版本升级到v16", html.includes("app.js?v=16") && html.includes("styles.css?v=16") && sw.includes("word-tuo-pwa-v16")],
 ];
 
 const failed = checks.filter(([, pass]) => !pass);
